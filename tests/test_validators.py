@@ -6,7 +6,7 @@ from process_reimagination_agent.validators import validate_mermaid_xml, validat
 def _valid_report(min_words: int = 2000) -> str:
     base = """
 ## Executive Summary
-Clean Core and Side-Car operating model for agentic orchestration.
+Clean Core and Side-Car operating model for agentic orchestration with custom logic never embedded in the ERP kernel.
 
 ## Cognitive Friction Analysis
 | [Current Manual Action] | Friction Type | Proposed Path | Rationale | Expected KPI Shift |
@@ -17,15 +17,29 @@ Clean Core and Side-Car operating model for agentic orchestration.
 Agent personas drive intake, adjudication, and orchestration.
 
 ## Technical Stack
-System of Intelligence in Side-Car, System of Record in Core ERP.
+System of Intelligence in Side-Car, System of Record in Core ERP, with custom logic never embedded in the ERP kernel.
 
 ## The Trust Gap Protocol
 Shadow to Co-Pilot to Autopilot with strict confidence controls.
+
+## Appendix: Control and Operability Baseline
+Single instance section only.
+
+## Executive Simplified Summary
+This design reduces manual work and speeds order processing. It protects ERP stability by keeping custom logic in the Side-Car layer. It scales automation safely with strong trust controls.
 """
-    words = base.split()
-    while len(words) < min_words:
-        words.extend("control policy validation clean core side-car".split())
-    return " ".join(words)
+    report = base
+    padding = (
+        "Additional implementation detail expands integration governance, persona reasoning, control design, and rollout "
+        "execution while maintaining non-repetitive section headings and preserving Clean Core boundaries. "
+    )
+    while len(report.split()) < min_words:
+        report = report.replace(
+            "## Appendix: Control and Operability Baseline",
+            f"{padding}\n\n## Appendix: Control and Operability Baseline",
+            1,
+        )
+    return report
 
 
 def test_validate_strategy_report_accepts_compliant_content() -> None:
@@ -39,14 +53,14 @@ def test_validate_mermaid_xml_accepts_compliant_xml() -> None:
   <DiagramType>Tiered_Agentic_SideCar</DiagramType>
   <MermaidData><![CDATA[
 graph TD
-  subgraph Zone_A [Omni-Channel Intake Tier]
+  subgraph External_Intake [External Intake]
     CH_EMAIL([Email/PDF Intake]):::external
     CH_CHAT([WhatsApp/Chat Intake]):::external
     CH_EDI([EDI Intake]):::external
     UY_SYNC{{Power Street Sync}}:::agent
   end
 
-  subgraph Zone_B [Agentic Side-Car Orchestrator]
+  subgraph Agentic_SideCar [Agentic SideCar]
     AG_SCRIBE{{The Scribe}}:::agent
     AG_INTENT{{Intent Analyzer}}:::agent
     AG_DISPUTE{{Dispute Judge}}:::agent
@@ -56,7 +70,7 @@ graph TD
     DB_POLICY[(Regional Policy DB)]:::persistence
   end
 
-  subgraph Zone_C [The Clean Core (SAP ERP)]
+  subgraph Clean_Core_ERP [Clean Core ERP]
     ERP_VA01[VA01 API]:::core
     ERP_MD[Master Data Check]:::core
     ERP_POST[Final Order Posting]:::core
@@ -67,7 +81,7 @@ graph TD
   CH_CHAT -->|Webhook| UY_SYNC
   CH_EDI -->|AS2| UY_SYNC
   UY_SYNC -->|gRPC| AG_SCRIBE
-  WF_ROUTER -.->|Event Bus| AG_SCRIBE
+  WF_ROUTER -.->|gRPC| AG_SCRIBE
   AG_SCRIBE -->|JSON Payload| AG_INTENT
   AG_INTENT -.->|Policy Query API| DB_POLICY
   AG_INTENT -->|Validation RPC| WF_VALIDATOR
@@ -90,12 +104,12 @@ def test_validate_mermaid_xml_rejects_missing_china_gateway() -> None:
   <DiagramType>Tiered_Agentic_SideCar</DiagramType>
   <MermaidData><![CDATA[
 graph TD
-  subgraph Zone_A [Omni-Channel Intake Tier]
+  subgraph External_Intake [External Intake]
     CH_EMAIL([Email/PDF Intake]):::external
     CH_CHAT([WhatsApp/Chat Intake]):::external
     CH_EDI([EDI Intake]):::external
   end
-  subgraph Zone_B [Agentic Side-Car Orchestrator]
+  subgraph Agentic_SideCar [Agentic SideCar]
     AG_SCRIBE{{The Scribe}}:::agent
     AG_INTENT{{Intent Analyzer}}:::agent
     AG_DISPUTE{{Dispute Judge}}:::agent
@@ -104,7 +118,7 @@ graph TD
     WF_FORMAT([Formatting Engine]):::workflow
     DB_POLICY[(Regional Policy DB)]:::persistence
   end
-  subgraph Zone_C [The Clean Core (SAP ERP)]
+  subgraph Clean_Core_ERP [Clean Core ERP]
     ERP_VA01[VA01 API]:::core
     ERP_MD[Master Data Check]:::core
     ERP_POST[Final Order Posting]:::core
@@ -113,7 +127,7 @@ graph TD
   CH_EMAIL -->|Webhook| WF_ROUTER
   CH_CHAT -->|Webhook| WF_ROUTER
   CH_EDI -->|AS2| WF_ROUTER
-  WF_ROUTER -.->|Event Bus| AG_SCRIBE
+  WF_ROUTER -.->|gRPC| AG_SCRIBE
   AG_SCRIBE -->|JSON Payload| AG_INTENT
   AG_INTENT -.->|Policy Query API| DB_POLICY
   AG_INTENT -->|Validation RPC| WF_VALIDATOR
@@ -134,3 +148,25 @@ graph TD
 def test_validate_strategy_report_rejects_short_report() -> None:
     with pytest.raises(ValueError):
         validate_strategy_report("## Executive Summary short", min_words=2000)
+
+
+def test_validate_strategy_report_rejects_duplicate_appendix() -> None:
+    report = _valid_report()
+    report = report.replace(
+        "## Appendix: Control and Operability Baseline",
+        "## Appendix: Control and Operability Baseline\none\n\n## Appendix: Control and Operability Baseline",
+        1,
+    )
+    with pytest.raises(ValueError):
+        validate_strategy_report(report, min_words=2000)
+
+
+def test_validate_strategy_report_rejects_invalid_summary_sentence_count() -> None:
+    report = _valid_report()
+    report = report.replace(
+        "This design reduces manual work and speeds order processing. It protects ERP stability by keeping custom logic in the Side-Car layer. It scales automation safely with strong trust controls.",
+        "This design reduces manual work and speeds order processing. It protects ERP stability by keeping custom logic in the Side-Car layer.",
+        1,
+    )
+    with pytest.raises(ValueError):
+        validate_strategy_report(report, min_words=2000)

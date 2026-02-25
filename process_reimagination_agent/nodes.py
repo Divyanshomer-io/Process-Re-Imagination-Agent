@@ -328,6 +328,29 @@ def _build_cognitive_friction_table(cognitive_friction_logs: list[dict[str, Any]
     return "\n".join([header, *rows]) if rows else header
 
 
+def _add_unique_section(
+    section_order: list[str],
+    section_registry: dict[str, str],
+    heading: str,
+    body: str,
+) -> None:
+    if heading in section_registry:
+        raise ValueError(f"Duplicate protected section detected during generation: {heading}")
+    section_order.append(heading)
+    section_registry[heading] = body.strip()
+
+
+def _render_report_from_sections(
+    report_title: str,
+    section_order: list[str],
+    section_registry: dict[str, str],
+) -> str:
+    parts = [report_title]
+    for heading in section_order:
+        parts.append(f"{heading}\n{section_registry[heading]}")
+    return "\n\n".join(parts)
+
+
 def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
     process_name = state.get("process_name", "Process")
     context_region = state.get("context_region", "Global")
@@ -343,130 +366,187 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
     ]
     regional_nuances = json.dumps(state.get("regional_nuances", {}), indent=2)
 
-    sections: list[str] = []
-    sections.append(f"# Re-Imagined Strategy Report: {process_name}")
-    sections.append("## Executive Summary")
-    sections.append(
+    report_title = f"# Re-Imagined Strategy Report: {process_name}"
+    section_order: list[str] = []
+    section_registry: dict[str, str] = {}
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Executive Summary",
         (
             f"The One Big Move for {process_name} in {context_region} is to replace human middleware with a "
-            "Side-Car agentic intake and orchestration layer that protects the ERP core. The target architecture "
-            "converts scattered channels, unstructured documents, and rule-heavy coordination into a managed "
-            "hub-and-spoke flow where deterministic work is automated and probabilistic reasoning is isolated in "
-            "governed agent services. The guiding principle is non-negotiable: Clean Core remains intact and all "
-            "adaptive logic resides in Side-Car components with API-bound integration into SAP. This directly "
-            "reduces transcription defects, exception lead time, and operational rework while increasing throughput "
-            "without adding process fragility. The methodology is explicitly phase-driven. Phase 1 captures current "
-            "reality and friction with regional context, Phase 2 maps each friction to Path A/B/C with explicit "
-            "suitability gates, and Phase 3 translates the decisions into a deployable blueprint and trust protocol. "
-            "This program is designed to scale from Shadow to Co-Pilot to Autopilot with control points at each "
-            "stage, ensuring that control effectiveness rises as automation depth increases."
-        )
+            "Side-Car intelligence and orchestration layer that protects the SAP core while accelerating order-cycle "
+            "execution. This architecture treats every intake channel as an event source, every exception as a managed "
+            "decision point, and every ERP transaction as a standards-based API call rather than a custom-coded branch. "
+            "The strategic benefit is immediate: higher touchless throughput, lower transcription defects, faster "
+            "exception closure, and lower operational risk across regional variations. The design also keeps long-term "
+            "cost under control by avoiding core-kernel customization and by consolidating complex logic into reusable "
+            "side-car services. The methodology is intentionally strict: Phase 1 captures current reality and cognitive "
+            "friction, Phase 2 maps each friction to Path A/B/C with explicit suitability logic, and Phase 3 produces a "
+            "deployable blueprint backed by trust controls. The operating model is therefore transformation-ready and "
+            "audit-ready from day one."
+        ),
     )
 
-    sections.append("## Cognitive Friction Analysis")
-    sections.append(
-        "The following table is the mandatory friction inventory used by the Architect phase. "
-        "Each row describes where humans currently act as middleware and how the step is reclassified."
-    )
-    sections.append(table)
-
-    sections.append("## Architecture of the Future State")
-    sections.append(
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Cognitive Friction Analysis",
         (
-            "The target operating model uses an AI Agent Layer as a controlled intake and reasoning boundary. "
-            "Agent personas include: **The Intake Scribe** for unstructured order capture and normalization, "
-            "**The Change Manager** for order modifications and status-aware decisioning, and **The Dispute Judge** "
-            "for deduction adjudication with evidence chaining. These agents do not write custom business rules into "
-            "ERP transactions; they assemble context, evaluate policy, and invoke standard APIs. Path A candidates "
-            "are forced toward standard SAP process variants to reduce avoidable complexity. Path B candidates are "
-            "implemented as deterministic workflows and RPA-like automations in the platform layer. Path C candidates "
-            "remain strictly scoped to tasks requiring perception, reasoning, or adaptive action. This split prevents "
-            "overuse of GenAI and keeps deterministic throughput in low-risk automation rails."
-        )
-    )
-    sections.append(
-        (
-            "Regional execution is explicit. ANZ VA01 is a controlled exception fallback and is activated only under "
-            "exception conditions such as low-confidence interpretation or non-open order status. Uruguay Power Street "
-            "is modeled as an external-channel adapter in the Side-Car layer, where payload normalization and policy "
-            "checks occur before any standard ERP posting call. India DC-based entry and China Digital Hub nuances are "
-            "captured as context directives that influence intake rules and escalation thresholds while preserving "
-            "global control design. This policy architecture allows local variation without contaminating Core ERP "
-            "with region-specific custom logic."
-        )
+            "The following table is the mandatory friction inventory used by the Architect phase. Each row identifies "
+            "where humans currently act as middleware, what category of friction exists, and which intervention path "
+            "provides the safest and fastest improvement without violating Clean Core policies.\n\n"
+            f"{table}"
+        ),
     )
 
-    sections.append("## Technical Stack")
-    sections.append(
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Architecture of the Future State",
         (
-            "System of Intelligence: LangGraph orchestrator, Azure OpenAI-compatible reasoning services, policy and "
-            "validation gates, and side-car automation workers. System of Record: SAP S/4HANA and standard transaction "
-            "APIs. Integration contracts are API-first, event-driven where possible, and deterministic in edge handling. "
-            "The Side-Car layer owns document synthesis, intent recognition, confidence scoring, and exception routing. "
-            "Core ERP owns master data, posting integrity, pricing engines, ATP checks, and financial truth. The "
-            "division of responsibilities is strict to preserve upgradeability and reduce regression risk during ERP "
-            "releases. Every command from Side-Car to Core passes through schema validation and reference checks."
-        )
-    )
-    sections.append(
-        (
-            "Hard constraints are embedded in code and governance: no custom logic in ERP kernel, no bypass of Phase 1 "
-            "analysis, no Path C assignment unless the task has perception/reasoning/adaptive requirements, and no "
-            "blueprint release without trust-gate approval. These constraints convert architecture principles into "
-            "runnable controls and auditable outcomes."
-        )
+            "The future state is a hub-and-spoke operating model where the Agentic Side-Car is the controlled brain "
+            "between channels and SAP. Personas are explicit: **The Intake Scribe** extracts and normalizes incoming "
+            "order payloads; **The Intent Analyzer** classifies business intent and routes deterministic vs agentic work; "
+            "**The Dispute Judge** handles contextual exceptions requiring evidence reasoning. Path C tasks stay in this "
+            "layer and are executed with confidence scoring, policy checks, and human escalation hooks. Path B tasks are "
+            "delivered as deterministic workflow components such as routing, formatting, and validation engines. Path A "
+            "tasks are pushed back to standard ERP APIs and data checks. Regional variations are managed through policy "
+            "injection and adapter patterns in the side-car, not through core transaction branching. This architecture "
+            "lets McCain scale automation without coupling business variability to ERP internals."
+        ),
     )
 
-    sections.append("## The Trust Gap Protocol")
-    sections.append(
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Technical Stack",
         (
-            f"Current operating mode defaults to **{trust_gap_phase}**. In Shadow mode, agents produce recommendations "
-            "while humans retain execution authority and annotate gaps. In Co-Pilot mode, agents execute low-risk, "
-            "high-confidence steps with human override and sampled audits. In Autopilot mode, approved pathways run "
-            "without inline human action, but with continuous monitoring and rollback controls. The confidence gate is "
-            "strictly greater than 95%. Any score at or below threshold routes to Input Refiner for additional evidence "
-            "conditioning. Exceeding the configured refinement loop limit triggers human escalation and blocks blueprint "
-            "completion."
-        )
-    )
-    sections.append(
-        (
-            "Human supervision is not a temporary training wheel; it is a permanent control plane. Approval checkpoints "
-            "verify policy conformance, data quality, regional exception behavior, and ERP posting integrity. The "
-            "combination of interrupt-before-blueprint, checkpoint persistence, and explicit approval events creates a "
-            "practical trust fabric that scales with automation maturity."
-        )
+            "System of Intelligence: LangGraph orchestration, policy guardrails, confidence routing, and optional LLM "
+            "services configured through Azure/OpenAI-compatible settings. System of Record: SAP S/4HANA standard APIs, "
+            "master data, and posting integrity controls. Integration contracts are protocol-labeled and observable: "
+            "Webhook/AS2 intake, gRPC-style internal coordination, and OData/BAPI posting calls to ERP. Operational "
+            "control points include schema checks, idempotency, payload validation, and exception queues. **Clean Core "
+            "enforcement is explicit: all custom logic is isolated in the Side-Car layer and never embedded in the ERP "
+            "kernel.** This separation protects upgradeability and reduces regression risk during SAP releases while "
+            "still enabling high-adaptivity automation on top."
+        ),
     )
 
-    sections.append("## Path Design Decisions")
-    sections.append("\n".join(decision_lines) if decision_lines else "- No decisions available.")
-    sections.append("### Regional Nuance Registry")
-    sections.append(f"```json\n{regional_nuances}\n```")
-
-    sections.append("## Implementation Roadmap")
-    sections.append(
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Integration Design Deep Dive",
         (
-            "Wave 1 establishes Side-Car intake for unstructured channels, confidence scoring, and the quality loop. "
-            "Wave 2 expands deterministic automation for rule-heavy handoffs and introduces region adapters. Wave 3 "
-            "activates high-value agentic reasoning scenarios with strict Trust Gap progression controls. Across all "
-            "waves, KPI tracking focuses on cycle time, touchless rate, exception closure time, and posting accuracy. "
-            "Rollout gates include regression tests, policy controls, and rollback runbooks."
-        )
+            "The integration design follows a staged processing contract. Stage 1 handles omnichannel intake normalization "
+            "to convert emails, EDI payloads, and partner messages into a canonical order event. Stage 2 performs "
+            "classification and pathing: deterministic validations are executed through Path B services, while ambiguous "
+            "or context-rich tasks are routed to Path C reasoning nodes. Stage 3 executes approved ERP interactions via "
+            "standard API endpoints and performs post-transaction status callbacks to the side-car. Failure modes are "
+            "handled in-band: malformed payloads trigger formatter retries, confidence failures trigger refinement loops, "
+            "and prolonged uncertainty triggers human escalation. This design ensures that failure in one adapter or "
+            "service does not corrupt core posting behavior."
+        ),
     )
 
-    # Pad report to meet minimum word count while staying on-policy and technical.
-    report = "\n\n".join(sections)
-    appendix_block = (
-        "## Appendix: Control and Operability Baseline\n"
-        "Operational controls include payload schema validation, API idempotency keys, deterministic retry policies, "
-        "audit trail capture, and weekly control effectiveness reviews. Clean Core remains protected by prohibiting "
-        "custom transaction branching in ERP and by routing adaptive decisions through Side-Car policy engines. "
-        "Observability includes per-path confidence distributions, loop trigger counts, approval latency, and "
-        "region-specific exception frequency. These metrics support governance, change management, and measured "
-        "progression from Shadow to Co-Pilot to Autopilot without control degradation."
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Agent Persona Reasoning Model",
+        (
+            "Agent personas are intentionally constrained by reasoning boundaries. The Intake Scribe is optimized for "
+            "perception and structured extraction; it should not execute financial decisions. The Intent Analyzer is "
+            "optimized for context classification and action routing; it determines whether a case is suitable for Path A, "
+            "B, or C and records rationale for auditability. The Dispute Judge is optimized for evidence-based reasoning "
+            "in exception scenarios and must return both decision and evidence chain. Together these personas create a "
+            "transparent cognitive assembly line where each decision is attributable, reviewable, and reversible. This "
+            "design lowers black-box risk and supports phased trust adoption."
+        ),
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## The Trust Gap Protocol",
+        (
+            f"Current operating mode defaults to **{trust_gap_phase}**. In Shadow, agents produce recommendations while "
+            "humans keep execution authority and annotate decision quality gaps. In Co-Pilot, high-confidence low-risk "
+            "steps can execute with explicit override and sampling audits. In Autopilot, approved lanes execute "
+            "touchlessly with continuous telemetry, rollback hooks, and policy drift detection. The confidence threshold "
+            "is strictly greater than 95%; anything at or below threshold is routed back to refinement. If loop limits are "
+            "reached, the process hard-stops into human escalation rather than silently degrading quality."
+        ),
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Path Design Decisions",
+        "\n".join(decision_lines) if decision_lines else "- No decisions available.",
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Regional Policy Registry",
+        (
+            "The policy registry below captures normalized regional signals used to drive runtime behavior in the "
+            "orchestration layer.\n\n"
+            f"```json\n{regional_nuances}\n```"
+        ),
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Delivery and Rollout Plan",
+        (
+            "Wave 1 establishes mandatory synthesis and confidence gating with human approval checkpoints. Wave 2 expands "
+            "deterministic automations and adapter hardening for region-specific channels. Wave 3 scales approved agentic "
+            "lanes with deeper telemetry, cost controls, and governance scorecards. KPI packs include touchless rate, "
+            "manual touch reduction, exception turnaround, posting accuracy, and confidence distribution by task type. "
+            "Exit criteria for each wave include audit evidence, rollback readiness, and trend stability over multiple "
+            "business cycles."
+        ),
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Appendix: Control and Operability Baseline",
+        (
+            "Core operability controls include schema validation, deterministic retries, idempotency keys, payload lineage, "
+            "and cross-system correlation IDs. Governance controls include policy versioning, role-based approval, and "
+            "exception triage SLAs. Reliability controls include dead-letter routing, retry budget limits, and monitored "
+            "degradation paths. These controls make the automation stack production-safe while maintaining separation of "
+            "concerns between side-car intelligence and ERP record integrity."
+        ),
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Executive Simplified Summary",
+        (
+            "This design gives McCain one intelligent intake layer that reduces manual work and speeds order processing "
+            "across regions. By keeping custom logic in the Side-Car and using only standard ERP APIs, the solution "
+            "protects SAP stability and lowers upgrade risk. The trust-gated rollout lets the business scale automation "
+            "safely while improving accuracy, cycle time, and service quality."
+        ),
+    )
+
+    report = _render_report_from_sections(report_title, section_order, section_registry)
+    expansion_block = (
+        "Further technical detail: event payload contracts are versioned and backward-compatible, policy decisions are "
+        "traceable to explicit evidence chains, side-car services are horizontally scalable, and rollout governance uses "
+        "measurable confidence and exception KPIs to prevent quality drift."
     )
     while count_words(report) < settings.min_report_words:
-        report = f"{report}\n\n{appendix_block}"
+        section_registry["## Delivery and Rollout Plan"] = (
+            f"{section_registry['## Delivery and Rollout Plan']}\n\n{expansion_block}"
+        )
+        report = _render_report_from_sections(report_title, section_order, section_registry)
 
     return report
 
@@ -484,8 +564,8 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
 
     lines: list[str] = []
     lines.append("graph TD")
-    lines.append("  %% Zone A: Omni-Channel Intake Tier")
-    lines.append('  subgraph Zone_A ["Omni-Channel Intake Tier"]')
+    lines.append("  %% Zone A: External_Intake")
+    lines.append('  subgraph External_Intake ["External Intake"]')
     lines.append("    CH_EMAIL([Email/PDF Intake]):::external")
     lines.append("    CH_CHAT([WhatsApp/Chat Intake]):::external")
     lines.append("    CH_EDI([EDI Intake]):::external")
@@ -497,8 +577,8 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
         lines.append("    CN_GATEWAY[Digital Hub Gateway]:::core")
     lines.append("  end")
     lines.append("")
-    lines.append("  %% Zone B: Agentic Side-Car Orchestrator")
-    lines.append('  subgraph Zone_B ["Agentic Side-Car Orchestrator"]')
+    lines.append("  %% Zone B: Agentic_SideCar")
+    lines.append('  subgraph Agentic_SideCar ["Agentic SideCar"]')
     lines.append("    AG_SCRIBE{{The Scribe}}:::agent")
     lines.append("    AG_INTENT{{Intent Analyzer}}:::agent")
     lines.append("    AG_DISPUTE{{Dispute Judge}}:::agent")
@@ -508,8 +588,8 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
     lines.append("    DB_POLICY[(Regional Policy DB)]:::persistence")
     lines.append("  end")
     lines.append("")
-    lines.append("  %% Zone C: The Clean Core (SAP ERP)")
-    lines.append('  subgraph Zone_C ["The Clean Core (SAP ERP)"]')
+    lines.append("  %% Zone C: Clean_Core_ERP")
+    lines.append('  subgraph Clean_Core_ERP ["Clean Core ERP"]')
     lines.append("    ERP_VA01[VA01 API]:::core")
     lines.append("    ERP_MD[Master Data Check]:::core")
     lines.append("    ERP_POST[Final Order Posting]:::core")

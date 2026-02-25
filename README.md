@@ -45,6 +45,16 @@ Final outputs:
 - `outputs/<thread_id>/process_blueprint.mmd` (raw Mermaid graph)
 - `outputs/<thread_id>/process_blueprint.svg` (rendered image, auto-generated when `mmdc` or `npx` is available)
 
+Blueprint zoning contract (strict):
+- `subgraph External_Intake [...]`
+- `subgraph Agentic_SideCar [...]`
+- `subgraph Clean_Core_ERP [...]`
+
+Strategy report contract (strict):
+- `## Appendix: Control and Operability Baseline` appears exactly once.
+- Final section must be `## Executive Simplified Summary` with exactly 3 sentences.
+- Report explicitly states custom logic is isolated in Side-Car and never embedded in ERP kernel.
+
 If SVG is not generated, set `CHROME_PATH` to your Chrome executable and rerun `resume`:
 ```powershell
 $env:CHROME_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"

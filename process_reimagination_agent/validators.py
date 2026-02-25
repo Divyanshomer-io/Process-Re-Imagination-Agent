@@ -10,11 +10,19 @@ REQUIRED_REPORT_HEADINGS = [
     "## Architecture of the Future State",
     "## Technical Stack",
     "## The Trust Gap Protocol",
+    "## Executive Simplified Summary",
 ]
 
 
 def count_words(text: str) -> int:
     return len(re.findall(r"\b\w+\b", text))
+
+
+def _count_sentences(text: str) -> int:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    if not normalized:
+        return 0
+    return len(re.findall(r"[^.!?]+[.!?]", normalized))
 
 
 def validate_phase1_executed(state: dict[str, Any]) -> None:
@@ -42,10 +50,32 @@ def validate_strategy_report(report: str, min_words: int = 2000) -> None:
     for heading in REQUIRED_REPORT_HEADINGS:
         if heading not in report:
             raise ValueError(f"Missing required report section: {heading}")
+
+    level2_headings = re.findall(r"^##\s+(.+)$", report, re.M)
+    appendix_sections = [heading for heading in level2_headings if "appendix" in heading.lower()]
+    control_baseline_sections = [
+        heading for heading in level2_headings if ("control" in heading.lower() and "baseline" in heading.lower())
+    ]
+    if len(appendix_sections) != 1:
+        raise ValueError("Appendix section must appear exactly once.")
+    if len(control_baseline_sections) != 1:
+        raise ValueError("Control Baseline section must appear exactly once.")
+
+    summary_heading = "## Executive Simplified Summary"
+    if report.count(summary_heading) != 1:
+        raise ValueError("Executive Simplified Summary section must appear exactly once.")
+    summary_body = report.split(summary_heading, 1)[1].strip()
+    if "\n## " in summary_body:
+        raise ValueError("Executive Simplified Summary must be the terminal section.")
+    if _count_sentences(summary_body) != 3:
+        raise ValueError("Executive Simplified Summary must contain exactly 3 sentences.")
+
     if "Clean Core" not in report:
         raise ValueError("Report must explicitly describe Clean Core strategy.")
     if "Side-Car" not in report and "Side Car" not in report:
         raise ValueError("Report must explicitly describe Side-Car strategy.")
+    if "never embedded in the ERP kernel" not in report:
+        raise ValueError("Report must explicitly state custom logic is never embedded in ERP kernel.")
     if count_words(report) < min_words:
         raise ValueError(f"Strategy report word count is below threshold {min_words}.")
 
@@ -84,12 +114,9 @@ def validate_mermaid_xml(mermaid_xml: str) -> None:
     content = (mermaid_data.text or "").strip()
     required_tokens = [
         "graph TD",
-        "subgraph Zone_A",
-        "subgraph Zone_B",
-        "subgraph Zone_C",
-        "Omni-Channel Intake Tier",
-        "Agentic Side-Car Orchestrator",
-        "The Clean Core (SAP ERP)",
+        "subgraph External_Intake",
+        "subgraph Agentic_SideCar",
+        "subgraph Clean_Core_ERP",
         "{{The Scribe}}",
         "{{Intent Analyzer}}",
         "{{Dispute Judge}}",

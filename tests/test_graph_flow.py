@@ -1,4 +1,5 @@
 import pytest
+import re
 
 langgraph = pytest.importorskip("langgraph")
 from langgraph.checkpoint.memory import MemorySaver
@@ -53,4 +54,14 @@ def test_graph_interrupt_then_resume_generates_blueprint() -> None:
     assert final_state["phase_status"]["phase_3_blueprint_generation"] == "completed"
     assert "strategy_report_markdown" in final_state["refined_blueprint"]
     assert "mermaid_xml" in final_state["refined_blueprint"]
-
+    report = final_state["strategy_report_markdown"]
+    assert report.count("## Appendix: Control and Operability Baseline") == 1
+    assert report.count("## Executive Simplified Summary") == 1
+    summary_body = report.split("## Executive Simplified Summary", 1)[1].strip()
+    assert "\n## " not in summary_body
+    assert len(re.findall(r"[^.!?]+[.!?]", summary_body)) == 3
+    assert "never embedded in the ERP kernel" in report
+    mermaid_xml = final_state["mermaid_xml"]
+    assert "subgraph External_Intake" in mermaid_xml
+    assert "subgraph Agentic_SideCar" in mermaid_xml
+    assert "subgraph Clean_Core_ERP" in mermaid_xml
