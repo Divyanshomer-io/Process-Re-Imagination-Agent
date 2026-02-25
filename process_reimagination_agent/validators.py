@@ -1,0 +1,144 @@
+from __future__ import annotations
+
+import re
+from typing import Any
+
+
+REQUIRED_REPORT_HEADINGS = [
+    "## Executive Summary",
+    "## Cognitive Friction Analysis",
+    "## Architecture of the Future State",
+    "## Technical Stack",
+    "## The Trust Gap Protocol",
+]
+
+
+def count_words(text: str) -> int:
+    return len(re.findall(r"\b\w+\b", text))
+
+
+def validate_phase1_executed(state: dict[str, Any]) -> None:
+    phase_status = state.get("phase_status", {})
+    if phase_status.get("phase_1_current_reality_synthesis") != "completed":
+        raise ValueError("Phase 1 was not completed. PHASE 1 is mandatory and cannot be skipped.")
+    if not state.get("cognitive_friction_logs"):
+        raise ValueError("Phase 1 produced no cognitive friction logs.")
+
+
+def validate_path_decisions(path_decisions: list[dict[str, Any]]) -> None:
+    if not path_decisions:
+        raise ValueError("Path decisions are empty.")
+    for decision in path_decisions:
+        path = decision.get("path")
+        if path not in {"A", "B", "C"}:
+            raise ValueError(f"Invalid path decision '{path}'. Expected one of A/B/C.")
+        if not decision.get("clean_core_guardrail"):
+            raise ValueError("Missing Clean Core guardrail annotation.")
+        if not decision.get("side_car_component"):
+            raise ValueError("Missing Side-Car component annotation.")
+
+
+def validate_strategy_report(report: str, min_words: int = 2000) -> None:
+    for heading in REQUIRED_REPORT_HEADINGS:
+        if heading not in report:
+            raise ValueError(f"Missing required report section: {heading}")
+    if "Clean Core" not in report:
+        raise ValueError("Report must explicitly describe Clean Core strategy.")
+    if "Side-Car" not in report and "Side Car" not in report:
+        raise ValueError("Report must explicitly describe Side-Car strategy.")
+    if count_words(report) < min_words:
+        raise ValueError(f"Strategy report word count is below threshold {min_words}.")
+
+
+def validate_mermaid_xml(mermaid_xml: str) -> None:
+    try:
+        from lxml import etree  # type: ignore[import-not-found]
+
+        root = etree.fromstring(mermaid_xml.encode("utf-8"))
+    except Exception as exc:
+        try:
+            import xml.etree.ElementTree as ET
+
+            root = ET.fromstring(mermaid_xml)
+        except Exception as fallback_exc:
+            raise ValueError(f"Invalid XML format for blueprint: {fallback_exc}") from fallback_exc
+
+    if root.tag != "VisualArchitecture":
+        raise ValueError("Root element must be VisualArchitecture.")
+    if root.attrib.get("version") != "2.0":
+        raise ValueError("VisualArchitecture version must be 2.0.")
+
+    region_element = root.find("Region")
+    if region_element is None or not (region_element.text or "").strip():
+        raise ValueError("Region element is required.")
+    context_region = (region_element.text or "").strip().lower()
+
+    diagram_type = root.find("DiagramType")
+    if diagram_type is None or (diagram_type.text or "").strip() != "Tiered_Agentic_SideCar":
+        raise ValueError("DiagramType must be Tiered_Agentic_SideCar.")
+
+    mermaid_data = root.find("MermaidData")
+    if mermaid_data is None:
+        raise ValueError("MermaidData element missing.")
+
+    content = (mermaid_data.text or "").strip()
+    required_tokens = [
+        "graph TD",
+        "subgraph Zone_A",
+        "subgraph Zone_B",
+        "subgraph Zone_C",
+        "Omni-Channel Intake Tier",
+        "Agentic Side-Car Orchestrator",
+        "The Clean Core (SAP ERP)",
+        "{{The Scribe}}",
+        "{{Intent Analyzer}}",
+        "{{Dispute Judge}}",
+        "([Email Router])",
+        "([Data Validator])",
+        "([Formatting Engine])",
+        "[VA01 API]",
+        "[Master Data Check]",
+        "[Final Order Posting]",
+        "[(S/4HANA Master Data)]",
+        "[(Regional Policy DB)]",
+    ]
+    for token in required_tokens:
+        if token not in content:
+            raise ValueError(f"Mermaid diagram missing token: {token}")
+
+    # Connection semantics: solid, dotted, and critical thick path must exist with protocol labels.
+    if "-->|" not in content:
+        raise ValueError("Mermaid diagram must include solid protocol-labeled flows (-->|...|).")
+    if "-.->|" not in content:
+        raise ValueError("Mermaid diagram must include dotted protocol-labeled flows (-.->|...|).")
+    if "==>|" not in content:
+        raise ValueError("Mermaid diagram must include thick protocol-labeled critical flow (==>|...|).")
+
+    if "Webhook" not in content or "gRPC" not in content or "OData API" not in content:
+        raise ValueError("Mermaid diagram must label links with protocol names (Webhook, gRPC, OData API).")
+
+    # Regional logic enforcement.
+    if "south africa" in context_region or context_region in {"za", "sa"}:
+        if "[(Vector 3PL)]" not in content:
+            raise ValueError("South Africa blueprint must include Vector 3PL persistence node.")
+        if "Backward Integration API" not in content:
+            raise ValueError("South Africa blueprint must include backward integration dotted link.")
+    if "uruguay" in context_region and "{{Power Street Sync}}" not in content:
+        raise ValueError("Uruguay blueprint must include Power Street Sync adaptive intake node.")
+    if "china" in context_region:
+        if "[Digital Hub Gateway]" not in content:
+            raise ValueError("China blueprint must include Digital Hub Gateway.")
+        if "CH_EMAIL -->|Webhook| CN_GATEWAY" not in content:
+            raise ValueError("China blueprint must route traffic through Digital Hub Gateway before Side-Car.")
+
+
+def validate_methodology_compliance(state: dict[str, Any], min_report_words: int = 2000) -> None:
+    validate_phase1_executed(state)
+    phase_status = state.get("phase_status", {})
+    if phase_status.get("phase_2_agentic_reasoning") != "completed":
+        raise ValueError("Phase 2 was not completed.")
+    validate_path_decisions(state.get("path_decisions", []))
+    report = state.get("strategy_report_markdown", "")
+    mermaid_xml = state.get("mermaid_xml", "")
+    validate_strategy_report(report, min_words=min_report_words)
+    validate_mermaid_xml(mermaid_xml)

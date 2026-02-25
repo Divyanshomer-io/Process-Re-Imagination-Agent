@@ -1,0 +1,15 @@
+Process: Perform Order Intake / Enter Order Into System
+Region Context: ANZ, India, Uruguay
+
+Pain points:
+- Manual email and PDF order entry into SAP.
+- Spreadsheet uploads from distribution center channels in India.
+- Frequent order change requests in ANZ.
+- Uruguay Power Street channel payload requires normalization before posting.
+- Deduction and dispute processing is slow and manual.
+
+Regional nuances:
+- ANZ VA01 is a fallback exception path, not the default.
+- Uruguay Power Street is an external channel adapter requirement.
+- Keep SAP core standard and route adaptive logic through Side-Car.
+
