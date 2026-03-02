@@ -65,3 +65,5 @@ def test_graph_interrupt_then_resume_generates_blueprint() -> None:
     assert "subgraph External_Intake" in mermaid_xml
     assert "subgraph Agentic_SideCar" in mermaid_xml
     assert "subgraph Clean_Core_ERP" in mermaid_xml
+    assert "<EvidenceReferences>" in mermaid_xml
+    assert "%% Evidence References derived from uploaded documents" in mermaid_xml

@@ -22,6 +22,7 @@ class AgentState(TypedDict, total=False):
     context_region: str
     pain_points: list[str]
     regional_nuances: dict[str, Any]
+    evidence_references: list[dict[str, str]]
     phase_status: dict[str, str]
     confidence_score: float
     trust_gap_phase: TrustGapPhase
@@ -46,6 +47,7 @@ def create_initial_state(manifest: InputManifest, trust_gap_phase: TrustGapPhase
         context_region=manifest.context_region,
         pain_points=manifest.pain_points,
         regional_nuances={},
+        evidence_references=[],
         phase_status={
             "phase_1_current_reality_synthesis": "pending",
             "phase_2_agentic_reasoning": "pending",
@@ -61,4 +63,3 @@ def create_initial_state(manifest: InputManifest, trust_gap_phase: TrustGapPhase
         errors=[],
         quality_gate_result="refine",
     )
-

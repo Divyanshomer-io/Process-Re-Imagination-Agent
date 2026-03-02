@@ -178,6 +178,7 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
             "context_region": state.get("context_region", ""),
             "cognitive_friction_logs": state.get("cognitive_friction_logs", []),
             "regional_nuances": state.get("regional_nuances", {}),
+            "evidence_references": state.get("evidence_references", []),
             "phase_status": {
                 "phase_1_current_reality_synthesis": phase_status.get("phase_1_current_reality_synthesis", "unknown"),
             },

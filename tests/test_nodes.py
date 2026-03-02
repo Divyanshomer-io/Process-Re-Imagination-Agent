@@ -17,6 +17,21 @@ def test_friction_points_node_always_runs_with_sparse_inputs() -> None:
     assert updated["cognitive_friction_logs"]
 
 
+def test_friction_points_node_derives_pain_points_from_document_text() -> None:
+    manifest = InputManifest(
+        process_name="Order Intake",
+        context_region="ANZ",
+        pain_points=[],
+        files=["sample_inputs/order_intake_notes.txt"],
+    )
+    state = create_initial_state(manifest)
+    updated = friction_points_node(state, Settings())
+    assert updated["pain_points"]
+    assert len(updated["cognitive_friction_logs"]) >= 2
+    assert any("DOC" in str(item.get("source_evidence", "")) for item in updated["cognitive_friction_logs"])
+    assert updated.get("evidence_references")
+
+
 def test_path_classifier_node_path_c_guardrail_enforced() -> None:
     manifest = InputManifest(
         process_name="Order Intake",

@@ -11,6 +11,8 @@ LangGraph implementation of the McCain Agentic Process Re-Imagination Architect.
 - Uses a non-linear graph with quality-control loop and confidence threshold `>95%`.
 - Uses Trust Gap checkpointing with `MemorySaver` and `interrupt_before=["Blueprint_Node"]`.
 - Enforces Clean Core + Side-Car architecture rules.
+- Derives pain points directly from uploaded artifact text when explicit pain points are not provided.
+- Attaches source evidence references (`DOC#`) to friction logs and blueprint evidence metadata.
 
 ## Install
 ```powershell
@@ -71,6 +73,10 @@ System dependencies:
 - Tesseract OCR must be installed and available on `PATH` for OCR extraction.
 - Poppler is required for PDF page rendering via `pdf2image` (used for PDF OCR).
 - If Tesseract or Poppler is missing, ingestion degrades gracefully and records warnings/errors; the workflow does not crash.
+
+Evidence-aware blueprint behavior:
+- `process_blueprint.xml` contains an `<EvidenceReferences>` block with source excerpts from uploaded artifacts.
+- Mermaid includes evidence comments and, when detected from source text, flow nodes like order-type and capture-failure decisions.
 
 ## Regional rules hardcoded
 - `ANZ VA01` is an exception fallback rule.

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from pathlib import Path
 from statistics import mean
 from typing import Any
 from xml.sax.saxutils import escape
@@ -10,6 +12,265 @@ from process_reimagination_agent.ingestion import ingest_manifest
 from process_reimagination_agent.models import FrictionItem, InputManifest, PathDecision
 from process_reimagination_agent.regional_rules import apply_regional_overrides_to_decision, detect_regional_nuances
 from process_reimagination_agent.validators import count_words, validate_mermaid_xml, validate_strategy_report
+
+
+def _compact_text(text: str, max_len: int = 180) -> str:
+    compact = re.sub(r"\s+", " ", text).strip()
+    if len(compact) <= max_len:
+        return compact
+    return f"{compact[: max_len - 3].rstrip()}..."
+
+
+def _markdown_cell(text: str) -> str:
+    return _compact_text(text).replace("|", "\\|")
+
+
+def _extract_excerpt(content: str, start: int, end: int, max_len: int = 180) -> str:
+    window_start = max(0, start - 90)
+    window_end = min(len(content), end + 120)
+    return _compact_text(content[window_start:window_end], max_len=max_len)
+
+
+def _collect_document_references(raw_inputs: dict[str, Any], max_refs: int = 12) -> list[dict[str, str]]:
+    refs: list[dict[str, str]] = []
+    for idx, doc in enumerate(raw_inputs.get("documents", []), start=1):
+        content = str(doc.get("content", ""))
+        if not content.strip():
+            continue
+        path = str(doc.get("path", ""))
+        refs.append(
+            {
+                "id": f"DOC{idx}",
+                "source": Path(path).name if path else f"document_{idx}",
+                "path": path,
+                "excerpt": _compact_text(content, max_len=220),
+            }
+        )
+        if len(refs) >= max_refs:
+            break
+    return refs
+
+
+def _collect_pattern_references(
+    raw_inputs: dict[str, Any],
+    patterns: list[str],
+    *,
+    max_refs: int = 3,
+) -> list[dict[str, str]]:
+    compiled = [re.compile(pattern, re.IGNORECASE) for pattern in patterns]
+    refs: list[dict[str, str]] = []
+    for idx, doc in enumerate(raw_inputs.get("documents", []), start=1):
+        content = str(doc.get("content", ""))
+        if not content:
+            continue
+        matched: re.Match[str] | None = None
+        for pattern in compiled:
+            matched = pattern.search(content)
+            if matched:
+                break
+        if not matched:
+            continue
+        path = str(doc.get("path", ""))
+        refs.append(
+            {
+                "id": f"DOC{idx}",
+                "source": Path(path).name if path else f"document_{idx}",
+                "path": path,
+                "excerpt": _extract_excerpt(content, matched.start(), matched.end()),
+            }
+        )
+        if len(refs) >= max_refs:
+            break
+    return refs
+
+
+def _derive_document_friction_items(
+    *,
+    raw_inputs: dict[str, Any],
+    combined_text: str,
+    context_region: str,
+) -> list[FrictionItem]:
+    text = combined_text.lower()
+    if not text.strip():
+        return []
+
+    # These rules translate unstructured process evidence into friction items with source references.
+    rules: list[dict[str, Any]] = [
+        {
+            "patterns": [
+                r"\bmanual entry\b",
+                r"\bmanually entered\b",
+                r"\bemail\b",
+                r"\bpdf\b",
+                r"\bspreadsheet\b",
+                r"\bfax\b",
+            ],
+            "current_manual_action": "Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP.",
+            "friction_type": "Human transcription and unstructured intake triage",
+            "proposed_path": "C",
+            "rationale": "Requires perception over unstructured payloads and adaptive extraction checks.",
+            "expected_kpi_shift": "60-80% faster intake and fewer keying defects",
+            "requires_perception": True,
+            "requires_reasoning": True,
+            "requires_adaptive_action": False,
+        },
+        {
+            "patterns": [
+                r"\bedi failure\b",
+                r"\bfailed idoc\b",
+                r"\bmissing data\b",
+                r"\bformatting errors?\b",
+                r"\bincorrect product codes?\b",
+                r"\bincompletion log\b",
+                r"\bduplicate order\b",
+            ],
+            "current_manual_action": "Order capture failures require manual triage for EDI/data-quality exceptions.",
+            "friction_type": "Deterministic coordination and status handling",
+            "proposed_path": "B",
+            "rationale": "Best handled by deterministic validation, routing, and retry workflows.",
+            "expected_kpi_shift": "25-40% reduction in exception turnaround time",
+            "requires_perception": False,
+            "requires_reasoning": False,
+            "requires_adaptive_action": False,
+        },
+        {
+            "patterns": [
+                r"\bva02\b",
+                r"\bva03\b",
+                r"\bchange request",
+                r"\bchange sales order\b",
+                r"\bprocessed manually in sap\b",
+            ],
+            "current_manual_action": "Order changes are processed manually in SAP (VA02/VA03) after initial intake.",
+            "friction_type": "Deterministic coordination and status handling",
+            "proposed_path": "B",
+            "rationale": "Change flows are repeatable and should be orchestrated via deterministic side-car workflows.",
+            "expected_kpi_shift": "20-35% faster order amendment cycle time",
+            "requires_perception": False,
+            "requires_reasoning": False,
+            "requires_adaptive_action": False,
+        },
+        {
+            "patterns": [
+                r"\bwhat is the order type\b",
+                r"\bconsignment\b",
+                r"\benter standard order details into the erp\b",
+            ],
+            "current_manual_action": "Order-type branching (standard vs consignment) is resolved manually during entry.",
+            "friction_type": "ERP standardization opportunity for order-type branching",
+            "proposed_path": "A",
+            "rationale": "Should be standardized via core ERP rules and validated APIs.",
+            "expected_kpi_shift": "Lower transaction variance and fewer branch-specific defects",
+            "requires_perception": False,
+            "requires_reasoning": False,
+            "requires_adaptive_action": False,
+        },
+        {
+            "patterns": [
+                r"\bdigital hub\b",
+                r"\bmandatory for all orders\b",
+                r"\bno direct customer edi\b",
+            ],
+            "current_manual_action": "China intake must pass through Digital Hub before SAP posting.",
+            "friction_type": "Deterministic coordination and status handling",
+            "proposed_path": "B",
+            "rationale": "Gateway enforcement is deterministic and should be governed in side-car routing policy.",
+            "expected_kpi_shift": "Higher routing compliance and reduced posting exceptions",
+            "requires_perception": False,
+            "requires_reasoning": False,
+            "requires_adaptive_action": False,
+        },
+        {
+            "patterns": [
+                r"\bpower street\b",
+                r"\bon the spot\b",
+                r"\btruck\b",
+            ],
+            "current_manual_action": "Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting.",
+            "friction_type": "Channel-specific adaptive intake handling",
+            "proposed_path": "C",
+            "rationale": "Requires adaptive action across mobile channel payload variability.",
+            "expected_kpi_shift": "35-55% faster same-day order capture with fewer format errors",
+            "requires_perception": True,
+            "requires_reasoning": True,
+            "requires_adaptive_action": True,
+        },
+        {
+            "patterns": [
+                r"\bvector\b",
+                r"\bbackward integration\b",
+                r"\bconsignment model\b",
+            ],
+            "current_manual_action": "South Africa indirect orders need next-day Vector backward integration reconciliation.",
+            "friction_type": "Deterministic coordination and status handling",
+            "proposed_path": "B",
+            "rationale": "Boundary-system handoffs should be automated with deterministic integration checks.",
+            "expected_kpi_shift": "20-35% faster indirect-network reconciliation",
+            "requires_perception": False,
+            "requires_reasoning": False,
+            "requires_adaptive_action": False,
+        },
+        {
+            "patterns": [
+                r"\bdispute\b",
+                r"\bdeduction\b",
+                r"\bclaims\b",
+                r"\bshortage\b",
+            ],
+            "current_manual_action": "Deduction and dispute triage requires manual evidence reconciliation across systems.",
+            "friction_type": "Manual dispute triage and evidence reconciliation",
+            "proposed_path": "C",
+            "rationale": "Requires contextual reasoning over policy, order, and logistics evidence.",
+            "expected_kpi_shift": "30-50% dispute cycle-time reduction",
+            "requires_perception": True,
+            "requires_reasoning": True,
+            "requires_adaptive_action": True,
+        },
+    ]
+
+    derived: list[FrictionItem] = []
+    seen_actions: set[str] = set()
+    for rule in rules:
+        if not any(re.search(pattern, text, re.IGNORECASE) for pattern in rule["patterns"]):
+            continue
+        refs = _collect_pattern_references(raw_inputs, rule["patterns"])
+        ref_ids = ", ".join(ref["id"] for ref in refs)
+        ref_evidence = "; ".join(
+            f"{ref['id']} {ref['source']}: \"{ref['excerpt']}\"" for ref in refs
+        )
+        current_manual_action = str(rule["current_manual_action"])
+        if ref_ids:
+            current_manual_action = f"{current_manual_action} (Refs: {ref_ids})"
+        action_key = current_manual_action.lower()
+        if action_key in seen_actions:
+            continue
+        seen_actions.add(action_key)
+        derived.append(
+            FrictionItem(
+                current_manual_action=current_manual_action,
+                friction_type=str(rule["friction_type"]),
+                proposed_path=rule["proposed_path"],  # type: ignore[arg-type]
+                rationale=str(rule["rationale"]),
+                expected_kpi_shift=str(rule["expected_kpi_shift"]),
+                requires_perception=bool(rule["requires_perception"]),
+                requires_reasoning=bool(rule["requires_reasoning"]),
+                requires_adaptive_action=bool(rule["requires_adaptive_action"]),
+                source_evidence=ref_evidence or f"Derived from uploaded process text in {context_region}.",
+            )
+        )
+    return derived
+
+
+def _merge_friction_items(primary: list[FrictionItem], secondary: list[FrictionItem]) -> list[FrictionItem]:
+    merged: list[FrictionItem] = []
+    seen: set[str] = set()
+    for item in [*primary, *secondary]:
+        key = item.current_manual_action.strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(item)
+    return merged
 
 
 def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: str) -> list[FrictionItem]:
@@ -150,9 +411,32 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
     ingest_result = ingest_manifest(manifest)
     combined_text = ingest_result.get("combined_text", "")
     raw_inputs.update(ingest_result)
+    evidence_references = _collect_document_references(raw_inputs)
 
     regional_nuances = detect_regional_nuances(combined_text=combined_text, context_region=manifest.context_region)
-    frictions = _fallback_friction_from_pain_points(manifest.pain_points, combined_text)
+    derived_frictions = _derive_document_friction_items(
+        raw_inputs=raw_inputs,
+        combined_text=combined_text,
+        context_region=manifest.context_region,
+    )
+    explicit_frictions = _fallback_friction_from_pain_points(manifest.pain_points, combined_text) if manifest.pain_points else []
+    if manifest.pain_points:
+        frictions = _merge_friction_items(derived_frictions, explicit_frictions)
+    elif derived_frictions:
+        frictions = derived_frictions
+    else:
+        frictions = _fallback_friction_from_pain_points([], combined_text)
+
+    resolved_pain_points = list(manifest.pain_points)
+    if not resolved_pain_points:
+        resolved_pain_points = [item.current_manual_action for item in frictions]
+    elif derived_frictions:
+        existing = {point.strip().lower() for point in resolved_pain_points}
+        for item in derived_frictions:
+            action = item.current_manual_action.strip()
+            if action.lower() not in existing:
+                resolved_pain_points.append(action)
+                existing.add(action.lower())
 
     phase_status = dict(state.get("phase_status", {}))
     phase_status["phase_1_current_reality_synthesis"] = "completed"
@@ -166,9 +450,10 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
         "raw_inputs": raw_inputs,
         "process_name": manifest.process_name,
         "context_region": manifest.context_region,
-        "pain_points": manifest.pain_points,
+        "pain_points": resolved_pain_points,
         "cognitive_friction_logs": [item.model_dump() for item in frictions],
         "regional_nuances": regional_nuances,
+        "evidence_references": evidence_references,
         "phase_status": phase_status,
         "errors": errors,
     }
@@ -311,18 +596,19 @@ def Human_Escalation_Node(state: dict[str, Any], settings: Settings) -> dict[str
 
 def _build_cognitive_friction_table(cognitive_friction_logs: list[dict[str, Any]]) -> str:
     header = (
-        "| [Current Manual Action] | Friction Type | Proposed Path | Rationale | Expected KPI Shift |\n"
-        "|---|---|---|---|---|"
+        "| [Current Manual Action] | Friction Type | Proposed Path | Rationale | Expected KPI Shift | Source References |\n"
+        "|---|---|---|---|---|---|"
     )
     rows = []
     for item in cognitive_friction_logs:
         rows.append(
-            "| {action} | {ftype} | {path} | {rationale} | {kpi} |".format(
-                action=item.get("current_manual_action", "N/A"),
-                ftype=item.get("friction_type", "N/A"),
-                path=item.get("proposed_path", "N/A"),
-                rationale=item.get("rationale", "N/A"),
-                kpi=item.get("expected_kpi_shift", "N/A"),
+            "| {action} | {ftype} | {path} | {rationale} | {kpi} | {source} |".format(
+                action=_markdown_cell(str(item.get("current_manual_action", "N/A"))),
+                ftype=_markdown_cell(str(item.get("friction_type", "N/A"))),
+                path=_markdown_cell(str(item.get("proposed_path", "N/A"))),
+                rationale=_markdown_cell(str(item.get("rationale", "N/A"))),
+                kpi=_markdown_cell(str(item.get("expected_kpi_shift", "N/A"))),
+                source=_markdown_cell(str(item.get("source_evidence", "N/A"))),
             )
         )
     return "\n".join([header, *rows]) if rows else header
@@ -360,12 +646,31 @@ def _prepend_toc(report_title: str, section_order: list[str], report: str) -> st
     return report_title + "\n\n" + "\n".join(toc_lines) + "\n\n" + rest
 
 
+def _build_reference_register(references: list[dict[str, str]]) -> str:
+    if not references:
+        return "- No explicit source references were captured from uploaded artifacts."
+    lines = [
+        "| Reference ID | Source Artifact | Evidence Excerpt |",
+        "|---|---|---|",
+    ]
+    for ref in references:
+        lines.append(
+            "| {id} | {source} | {excerpt} |".format(
+                id=_markdown_cell(str(ref.get("id", "N/A"))),
+                source=_markdown_cell(str(ref.get("source", "N/A"))),
+                excerpt=_markdown_cell(str(ref.get("excerpt", ""))),
+            )
+        )
+    return "\n".join(lines)
+
+
 def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
     process_name = state.get("process_name", "Process")
     context_region = state.get("context_region", "Global")
     trust_gap_phase = state.get("trust_gap_phase", "Shadow")
     cognitive_friction_logs = state.get("cognitive_friction_logs", [])
     path_decisions = state.get("path_decisions", [])
+    evidence_references = state.get("evidence_references", [])
 
     table = _build_cognitive_friction_table(cognitive_friction_logs)
     decision_lines = [
@@ -407,6 +712,17 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
             "where humans currently act as middleware, what category of friction exists, and which intervention path "
             "provides the safest and fastest improvement without violating Clean Core policies.\n\n"
             f"{table}"
+        ),
+    )
+
+    _add_unique_section(
+        section_order,
+        section_registry,
+        "## Source Evidence Register",
+        (
+            "The following references were derived from uploaded source artifacts and used to ground the "
+            "friction and flow decisions in this report.\n\n"
+            f"{_build_reference_register(evidence_references)}"
         ),
     )
 
@@ -620,12 +936,80 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
     return report
 
 
+def _signal_reference_ids(raw_inputs: dict[str, Any], patterns: list[str], max_refs: int = 2) -> list[str]:
+    refs = _collect_pattern_references(raw_inputs, patterns, max_refs=max_refs)
+    return [ref["id"] for ref in refs]
+
+
+def _flow_signals(raw_inputs: dict[str, Any], combined_text: str) -> dict[str, dict[str, Any]]:
+    text = combined_text.lower()
+    signals: dict[str, dict[str, Any]] = {
+        "order_type_gateway": {
+            "enabled": bool(re.search(r"\bwhat is the order type\b|\bconsignment\b", text)),
+            "refs": _signal_reference_ids(
+                raw_inputs,
+                [r"\bwhat is the order type\b", r"\bconsignment\b", r"\benter standard order details\b"],
+            ),
+        },
+        "capture_failure_gateway": {
+            "enabled": bool(re.search(r"\border capturing failure\b|\bedi failure\b|\bfailed idoc\b", text)),
+            "refs": _signal_reference_ids(
+                raw_inputs,
+                [r"\border capturing failure\b", r"\bedi failure\b", r"\bfailed idoc\b"],
+            ),
+        },
+        "change_handler": {
+            "enabled": bool(re.search(r"\bva02\b|\bchange request\b|\bchange sales order\b", text)),
+            "refs": _signal_reference_ids(
+                raw_inputs,
+                [r"\bva02\b", r"\bchange request\b", r"\bchange sales order\b"],
+            ),
+        },
+        "availability_check": {
+            "enabled": bool(re.search(r"\bcheck product and service availability\b|\batp\b", text)),
+            "refs": _signal_reference_ids(
+                raw_inputs,
+                [r"\bcheck product and service availability\b", r"\batp\b"],
+            ),
+        },
+    }
+    return signals
+
+
+def _label_with_refs(base_label: str, ref_ids: list[str]) -> str:
+    if not ref_ids:
+        return base_label
+    return f"{base_label} Ref {' '.join(ref_ids)}"
+
+
+def _build_evidence_reference_xml(references: list[dict[str, str]]) -> str:
+    if not references:
+        return "  <EvidenceReferences/>"
+    lines = ["  <EvidenceReferences>"]
+    for ref in references:
+        lines.append(
+            '    <Reference id="{id}" source="{source}" path="{path}">{excerpt}</Reference>'.format(
+                id=escape(str(ref.get("id", ""))),
+                source=escape(str(ref.get("source", ""))),
+                path=escape(str(ref.get("path", ""))),
+                excerpt=escape(str(ref.get("excerpt", ""))),
+            )
+        )
+    lines.append("  </EvidenceReferences>")
+    return "\n".join(lines)
+
+
 def _is_region_match(region: str, candidates: set[str]) -> bool:
     region_norm = region.strip().lower()
     return any(token in region_norm for token in candidates)
 
 
 def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
+    raw_inputs = dict(state.get("raw_inputs", {}))
+    combined_text = str(raw_inputs.get("combined_text", ""))
+    evidence_references = list(state.get("evidence_references", [])) or _collect_document_references(raw_inputs)
+    flow_signals = _flow_signals(raw_inputs, combined_text)
+
     context_region = str(state.get("context_region", "Global")).strip()
     is_south_africa = _is_region_match(context_region, {"south africa", "za", "sa"})
     is_uruguay = _is_region_match(context_region, {"uruguay"})
@@ -652,6 +1036,12 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
     lines.append("    AG_INTENT{{Intent Analyzer}}:::agent")
     lines.append("    AG_DISPUTE{{Dispute Resolver}}:::agent")
     lines.append("    WF_ROUTER([Order Router]):::workflow")
+    if flow_signals["change_handler"]["enabled"]:
+        lines.append("    WF_CHANGE([Change Request Handler]):::workflow")
+    if flow_signals["capture_failure_gateway"]["enabled"]:
+        lines.append("    DG_CAPTURE_FAIL{{Capture Failure Decision}}:::agent")
+    if flow_signals["order_type_gateway"]["enabled"]:
+        lines.append("    DG_ORDER_TYPE{{Order Type Decision}}:::agent")
     lines.append("    WF_VALIDATOR([Validator]):::workflow")
     lines.append("    WF_FORMAT([Format Engine]):::workflow")
     lines.append("    DB_POLICY[(Policy Rules)]:::persistence")
@@ -662,34 +1052,81 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
     lines.append("    ERP_VA01[Create Order]:::core")
     lines.append("    ERP_MD[Validation]:::core")
     lines.append("    ERP_POST[Post Order]:::core")
+    if flow_signals["availability_check"]["enabled"]:
+        lines.append("    ERP_AVAIL[Check Product and Service Availability]:::core")
     lines.append("    DB_S4[(Master Data)]:::persistence")
     lines.append("  end")
     lines.append("")
+    lines.append("  %% Evidence References derived from uploaded documents")
+    if evidence_references:
+        for ref in evidence_references[:8]:
+            lines.append(
+                "  %% {id} {source}: {excerpt}".format(
+                    id=ref.get("id", "DOC"),
+                    source=_compact_text(str(ref.get("source", "")), max_len=50),
+                    excerpt=_compact_text(str(ref.get("excerpt", "")), max_len=110),
+                )
+            )
+    else:
+        lines.append("  %% No source evidence references were detected")
+    lines.append("")
     lines.append("  %% Intake routing with regional logic")
     if is_china:
-        lines.append("  CH_EMAIL -->|Send| CN_GATEWAY")
-        lines.append("  CH_CHAT -->|Send| CN_GATEWAY")
-        lines.append("  CH_EDI -->|Submit| CN_GATEWAY")
+        lines.append("  CH_EMAIL -->|Webhook| CN_GATEWAY")
+        lines.append("  CH_CHAT -->|Webhook| CN_GATEWAY")
+        lines.append("  CH_EDI -->|EDI| CN_GATEWAY")
         if is_south_africa:
             lines.append("  SA_VECTOR -.->|Integration Link| CN_GATEWAY")
-        lines.append("  CN_GATEWAY -->|Process| WF_ROUTER")
+        lines.append("  CN_GATEWAY -->|Route| WF_ROUTER")
     elif is_uruguay:
-        lines.append("  CH_EMAIL -->|Send| UY_SYNC")
-        lines.append("  CH_CHAT -->|Send| UY_SYNC")
-        lines.append("  CH_EDI -->|Submit| UY_SYNC")
-        lines.append("  UY_SYNC -->|Process| AG_SCRIBE")
+        lines.append("  CH_EMAIL -->|Webhook| UY_SYNC")
+        lines.append("  CH_CHAT -->|Webhook| UY_SYNC")
+        lines.append("  CH_EDI -->|EDI| UY_SYNC")
+        lines.append("  UY_SYNC -->|Normalize| AG_SCRIBE")
     else:
-        lines.append("  CH_EMAIL -->|Send| WF_ROUTER")
-        lines.append("  CH_CHAT -->|Send| WF_ROUTER")
-        lines.append("  CH_EDI -->|Submit| WF_ROUTER")
+        lines.append("  CH_EMAIL -->|Webhook| WF_ROUTER")
+        lines.append("  CH_CHAT -->|Webhook| WF_ROUTER")
+        lines.append("  CH_EDI -->|EDI| WF_ROUTER")
     if is_south_africa and not is_china:
         lines.append("  SA_VECTOR -.->|Integration Link| WF_ROUTER")
     lines.append("")
     lines.append("  %% Side-Car orchestration flow")
-    lines.append("  WF_ROUTER -.->|Process| AG_SCRIBE")
+    lines.append(
+        "  WF_ROUTER -.->|{label}| AG_SCRIBE".format(
+            label=_label_with_refs("Normalize Payload", flow_signals["change_handler"]["refs"]),
+        )
+    )
+    if flow_signals["change_handler"]["enabled"]:
+        lines.append(
+            "  WF_ROUTER -.->|{label}| WF_CHANGE".format(
+                label=_label_with_refs("Change Queue", flow_signals["change_handler"]["refs"]),
+            )
+        )
+        lines.append("  WF_CHANGE -->|Amend Order| AG_INTENT")
     lines.append("  AG_SCRIBE -->|Structured Data| AG_INTENT")
     lines.append("  AG_INTENT -.->|Apply Rules| DB_POLICY")
-    lines.append("  AG_INTENT -->|Validate| WF_VALIDATOR")
+    if flow_signals["capture_failure_gateway"]["enabled"]:
+        lines.append(
+            "  AG_INTENT -->|{label}| DG_CAPTURE_FAIL".format(
+                label=_label_with_refs("Detect Capture Failure", flow_signals["capture_failure_gateway"]["refs"]),
+            )
+        )
+        if flow_signals["order_type_gateway"]["enabled"]:
+            lines.append("  DG_CAPTURE_FAIL -->|No| DG_ORDER_TYPE")
+        else:
+            lines.append("  DG_CAPTURE_FAIL -->|No| WF_VALIDATOR")
+        lines.append("  DG_CAPTURE_FAIL -->|Yes| AG_DISPUTE")
+    if flow_signals["order_type_gateway"]["enabled"]:
+        if not flow_signals["capture_failure_gateway"]["enabled"]:
+            lines.append(
+                "  AG_INTENT -->|{label}| DG_ORDER_TYPE".format(
+                    label=_label_with_refs("Resolve Order Type", flow_signals["order_type_gateway"]["refs"]),
+                )
+            )
+        lines.append("  DG_ORDER_TYPE -->|Standard| WF_VALIDATOR")
+        lines.append("  DG_ORDER_TYPE -->|Consignment| WF_VALIDATOR")
+    if not flow_signals["order_type_gateway"]["enabled"] and not flow_signals["capture_failure_gateway"]["enabled"]:
+        lines.append("  AG_INTENT -->|Validate| WF_VALIDATOR")
     lines.append("  WF_VALIDATOR -->|Format| WF_FORMAT")
     lines.append("  AG_INTENT -->|Exception to Resolve| AG_DISPUTE")
     lines.append("  AG_DISPUTE -.->|Resolve Case| ERP_VA01")
@@ -700,6 +1137,13 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
     lines.append("  ERP_MD -.->|Check Data| DB_S4")
     lines.append("  ERP_MD ==>|Post to System| ERP_POST")
     lines.append("  ERP_POST -->|Notify Status| WF_ROUTER")
+    if flow_signals["availability_check"]["enabled"]:
+        lines.append(
+            "  ERP_POST -->|{label}| ERP_AVAIL".format(
+                label=_label_with_refs("Availability Sync", flow_signals["availability_check"]["refs"]),
+            )
+        )
+        lines.append("  ERP_AVAIL -->|Status Callback| WF_ROUTER")
     lines.append("")
     lines.append("  %% Visual classes")
     lines.append("  classDef external fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1px;")
@@ -709,9 +1153,11 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
     lines.append("  classDef persistence fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20,stroke-width:1.5px;")
 
     mermaid_data = "\n".join(lines)
+    evidence_reference_xml = _build_evidence_reference_xml(evidence_references[:12])
     return f"""<VisualArchitecture version="2.0">
   <Region>{escape(context_region)}</Region>
   <DiagramType>Tiered_Agentic_SideCar</DiagramType>
+{evidence_reference_xml}
   <MermaidData><![CDATA[
 {mermaid_data}
   ]]></MermaidData>
