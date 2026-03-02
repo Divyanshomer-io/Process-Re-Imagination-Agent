@@ -51,3 +51,5 @@ def test_cli_run_then_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     assert (tmp_path / thread_id / "strategy_report.md").exists()
     assert (tmp_path / thread_id / "process_blueprint.xml").exists()
     assert (tmp_path / thread_id / "process_blueprint.mmd").exists()
+    assert (tmp_path / thread_id / "friction_points.json").exists()
+    assert (tmp_path / thread_id / "path_classification.json").exists()

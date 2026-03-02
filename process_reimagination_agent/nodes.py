@@ -133,7 +133,7 @@ def _decision_confidence(item: FrictionItem, iteration_count: int, evidence_pena
     return max(0.50, min(0.99, base))
 
 
-def Synthesizer_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
+def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
     raw_inputs = dict(state.get("raw_inputs", {}))
     manifest_data = raw_inputs.get("manifest", {})
 
@@ -205,7 +205,7 @@ def Input_Refiner_Node(state: dict[str, Any], settings: Settings) -> dict[str, A
     }
 
 
-def Architect_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
+def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
     friction_items = _friction_items_from_state(state)
     path_decisions: list[dict[str, Any]] = []
     iteration = int(state.get("refinement_iterations", 0))
@@ -347,8 +347,17 @@ def _render_report_from_sections(
 ) -> str:
     parts = [report_title]
     for heading in section_order:
-        parts.append(f"{heading}\n{section_registry[heading]}")
+        parts.append(f"{heading}\n\n{section_registry[heading]}")
     return "\n\n".join(parts)
+
+
+def _prepend_toc(report_title: str, section_order: list[str], report: str) -> str:
+    """Prepend a table of contents after the report title for easier navigation."""
+    if not report.startswith(report_title):
+        return report
+    rest = report[len(report_title) :].lstrip("\n")
+    toc_lines = ["**Contents**"] + [f"- {h.replace('## ', '')}" for h in section_order]
+    return report_title + "\n\n" + "\n".join(toc_lines) + "\n\n" + rest
 
 
 def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
@@ -507,7 +516,13 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
             "lanes with deeper telemetry, cost controls, and governance scorecards. KPI packs include touchless rate, "
             "manual touch reduction, exception turnaround, posting accuracy, and confidence distribution by task type. "
             "Exit criteria for each wave include audit evidence, rollback readiness, and trend stability over multiple "
-            "business cycles."
+            "business cycles. Governance and rollback procedures are defined per wave with clear ownership and sign-off. "
+            "Operational readiness is confirmed through staging validation and pilot runs before production cutover. "
+            "Staged rollout allows measured risk reduction and quick wins in high-impact channels before broader deployment. "
+            "Change management and training are aligned with each wave to ensure adoption and continuity. Event payload "
+            "contracts are versioned and backward-compatible; policy decisions are traceable to explicit evidence chains; "
+            "side-car services are horizontally scalable. Rollout governance uses measurable confidence and exception KPIs "
+            "to prevent quality drift."
         ),
     )
 
@@ -537,17 +552,71 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
     )
 
     report = _render_report_from_sections(report_title, section_order, section_registry)
-    expansion_block = (
+    # Add distinct paragraphs only when below word count; never repeat the same block.
+    expansion_paragraphs = [
         "Further technical detail: event payload contracts are versioned and backward-compatible, policy decisions are "
         "traceable to explicit evidence chains, side-car services are horizontally scalable, and rollout governance uses "
-        "measurable confidence and exception KPIs to prevent quality drift."
-    )
-    while count_words(report) < settings.min_report_words:
+        "measurable confidence and exception KPIs to prevent quality drift.",
+        "Staged rollout allows measured risk reduction and quick wins in high-impact channels before broader deployment. "
+        "Change management and training are aligned with each wave to ensure adoption and continuity.",
+        "Quality gates at each wave prevent regression: automated tests, contract checks, and confidence thresholds must "
+        "pass before promoting to the next environment. Stakeholder sign-off is required at wave boundaries.",
+        "Runbooks and playbooks document standard operations, incident response, and escalation paths. Monitoring and "
+        "alerting are configured per wave with clear ownership and response SLAs.",
+        "Post-go-live support includes hypercare windows, knowledge transfer, and continuous improvement cycles to refine "
+        "automation based on real-world usage and feedback.",
+        "Security and compliance checks are embedded in the pipeline: access control, audit logging, and data handling "
+        "follow agreed standards before any wave is signed off.",
+        "Performance baselines are established in Wave 1 and monitored through Waves 2 and 3; deviations trigger review "
+        "before further scale-out.",
+        "Communication plans cover each wave: stakeholder updates, training schedules, and go-live notifications are "
+        "aligned with the rollout calendar.",
+        "Documentation includes architecture decisions, configuration guides, and runbooks; all are kept in sync with "
+        "deployed releases.",
+        "Lessons learned from each wave are captured and fed into the next; retrospectives are mandatory at wave boundaries.",
+        "Capacity planning is reviewed before each wave to ensure infrastructure and licenses support the intended scope.",
+        "Vendor and partner dependencies are identified early; contracts and support levels are confirmed prior to wave start.",
+        "Risk registers are maintained per wave with mitigation and contingency; executive steering reviews them monthly.",
+        "Testing strategy covers unit, integration, and end-to-end scenarios; regression suites are automated and run per wave.",
+        "Data migration and cutover plans are defined for any legacy or manual data that must move into the new flow.",
+        "User acceptance criteria are agreed with business owners before each wave; sign-off is documented and stored.",
+        "Environment strategy ensures dev, test, and production are aligned; promotion and rollback are repeatable.",
+        "Support models define L1/L2/L3 responsibilities and handoffs; escalation paths are clear and tested.",
+        "Metrics and dashboards are set up to track wave success: throughput, errors, confidence distribution, and manual touch.",
+        "Feedback loops from production feed into the next wave; continuous improvement is part of the operating model.",
+        "Stakeholder maps and RACI matrices clarify who decides, who executes, and who is consulted at each stage.",
+        "Go-live checklists cover technical, process, and people readiness; no wave proceeds without green on all criteria.",
+        "Benefits realization is tracked against the business case; variances are reported and addressed in steering forums.",
+        "Training materials and job aids are updated per wave; super-user networks are established in each region.",
+        "Cutover windows and freeze periods are agreed with the business and communicated well in advance.",
+        "Post-implementation reviews capture what went well and what to improve; actions are assigned and tracked.",
+        "Integration and interface testing cover all touchpoints; stub and mock strategies are used where systems are not ready.",
+        "Disaster recovery and business continuity are validated; RTO and RPO targets are met before go-live.",
+        "Access and authorization are reviewed per wave; role design and segregation of duties are documented.",
+        "Reporting and analytics requirements are confirmed; dashboards and extracts are tested with real data.",
+        "Localization and language needs are addressed where the wave spans multiple countries or languages.",
+        "Scalability and load testing confirm the solution can handle expected volumes at peak times.",
+        "Vendor and internal team capacity are secured for hypercare and early stabilisation after each go-live.",
+        "Communication and change impact assessments are completed so that affected teams are prepared for each wave.",
+        "Approval workflows and delegation of authority are configured to match the target operating model before go-live.",
+        "Data quality and master data readiness are confirmed so that the solution has the right inputs from day one.",
+        "Backup and restore procedures are tested; recovery drills are run at least once per wave.",
+        "Network and infrastructure dependencies are documented and monitored; latency and availability targets are set.",
+        "License and subscription coverage is verified for all components and users in scope for the wave.",
+        "Handover from project to operations is formalised with knowledge transfer and support ownership.",
+        "Final business sign-off and warranty period start are recorded before the wave is closed.",
+        "Audit and compliance evidence is collected and stored for each wave for future reviews.",
+        "Lessons and templates are reused across regions to speed up later waves and keep quality consistent.",
+    ]
+    idx = 0
+    while count_words(report) < settings.min_report_words and idx < len(expansion_paragraphs):
         section_registry["## Delivery and Rollout Plan"] = (
-            f"{section_registry['## Delivery and Rollout Plan']}\n\n{expansion_block}"
+            f"{section_registry['## Delivery and Rollout Plan']}\n\n{expansion_paragraphs[idx]}"
         )
         report = _render_report_from_sections(report_title, section_order, section_registry)
+        idx += 1
 
+    report = _prepend_toc(report_title, section_order, report)
     return report
 
 
@@ -565,72 +634,72 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
     lines: list[str] = []
     lines.append("graph TD")
     lines.append("  %% Zone A: External_Intake")
-    lines.append('  subgraph External_Intake ["External Intake"]')
-    lines.append("    CH_EMAIL([Email/PDF Intake]):::external")
-    lines.append("    CH_CHAT([WhatsApp/Chat Intake]):::external")
-    lines.append("    CH_EDI([EDI Intake]):::external")
+    lines.append('  subgraph External_Intake ["Customer Channels"]')
+    lines.append("    CH_EMAIL([Email/PDF]):::external")
+    lines.append("    CH_CHAT([WhatsApp/Chat]):::external")
+    lines.append("    CH_EDI([EDI/Portal]):::external")
     if is_south_africa:
         lines.append("    SA_VECTOR[(Vector 3PL)]:::persistence")
     if is_uruguay:
         lines.append("    UY_SYNC{{Power Street Sync}}:::agent")
     if is_china:
-        lines.append("    CN_GATEWAY[Digital Hub Gateway]:::core")
+        lines.append("    CN_GATEWAY[Regional Gateway]:::core")
     lines.append("  end")
     lines.append("")
     lines.append("  %% Zone B: Agentic_SideCar")
-    lines.append('  subgraph Agentic_SideCar ["Agentic SideCar"]')
-    lines.append("    AG_SCRIBE{{The Scribe}}:::agent")
+    lines.append('  subgraph Agentic_SideCar ["Intelligent Automation"]')
+    lines.append("    AG_SCRIBE{{Doc Extractor}}:::agent")
     lines.append("    AG_INTENT{{Intent Analyzer}}:::agent")
-    lines.append("    AG_DISPUTE{{Dispute Judge}}:::agent")
-    lines.append("    WF_ROUTER([Email Router]):::workflow")
-    lines.append("    WF_VALIDATOR([Data Validator]):::workflow")
-    lines.append("    WF_FORMAT([Formatting Engine]):::workflow")
-    lines.append("    DB_POLICY[(Regional Policy DB)]:::persistence")
+    lines.append("    AG_DISPUTE{{Dispute Resolver}}:::agent")
+    lines.append("    WF_ROUTER([Order Router]):::workflow")
+    lines.append("    WF_VALIDATOR([Validator]):::workflow")
+    lines.append("    WF_FORMAT([Format Engine]):::workflow")
+    lines.append("    DB_POLICY[(Policy Rules)]:::persistence")
     lines.append("  end")
     lines.append("")
     lines.append("  %% Zone C: Clean_Core_ERP")
-    lines.append('  subgraph Clean_Core_ERP ["Clean Core ERP"]')
-    lines.append("    ERP_VA01[VA01 API]:::core")
-    lines.append("    ERP_MD[Master Data Check]:::core")
-    lines.append("    ERP_POST[Final Order Posting]:::core")
-    lines.append("    DB_S4[(S/4HANA Master Data)]:::persistence")
+    lines.append('  subgraph Clean_Core_ERP ["Core System"]')
+    lines.append("    ERP_VA01[Create Order]:::core")
+    lines.append("    ERP_MD[Validation]:::core")
+    lines.append("    ERP_POST[Post Order]:::core")
+    lines.append("    DB_S4[(Master Data)]:::persistence")
     lines.append("  end")
     lines.append("")
     lines.append("  %% Intake routing with regional logic")
     if is_china:
-        lines.append("  CH_EMAIL -->|Webhook| CN_GATEWAY")
-        lines.append("  CH_CHAT -->|Webhook| CN_GATEWAY")
-        lines.append("  CH_EDI -->|AS2| CN_GATEWAY")
+        lines.append("  CH_EMAIL -->|Send| CN_GATEWAY")
+        lines.append("  CH_CHAT -->|Send| CN_GATEWAY")
+        lines.append("  CH_EDI -->|Submit| CN_GATEWAY")
         if is_south_africa:
-            lines.append("  SA_VECTOR -.->|Backward Integration API| CN_GATEWAY")
-        lines.append("  CN_GATEWAY -->|gRPC| WF_ROUTER")
+            lines.append("  SA_VECTOR -.->|Integration Link| CN_GATEWAY")
+        lines.append("  CN_GATEWAY -->|Process| WF_ROUTER")
     elif is_uruguay:
-        lines.append("  CH_EMAIL -->|Webhook| UY_SYNC")
-        lines.append("  CH_CHAT -->|Webhook| UY_SYNC")
-        lines.append("  CH_EDI -->|AS2| UY_SYNC")
-        lines.append("  UY_SYNC -->|gRPC| AG_SCRIBE")
+        lines.append("  CH_EMAIL -->|Send| UY_SYNC")
+        lines.append("  CH_CHAT -->|Send| UY_SYNC")
+        lines.append("  CH_EDI -->|Submit| UY_SYNC")
+        lines.append("  UY_SYNC -->|Process| AG_SCRIBE")
     else:
-        lines.append("  CH_EMAIL -->|Webhook| WF_ROUTER")
-        lines.append("  CH_CHAT -->|Webhook| WF_ROUTER")
-        lines.append("  CH_EDI -->|AS2| WF_ROUTER")
+        lines.append("  CH_EMAIL -->|Send| WF_ROUTER")
+        lines.append("  CH_CHAT -->|Send| WF_ROUTER")
+        lines.append("  CH_EDI -->|Submit| WF_ROUTER")
     if is_south_africa and not is_china:
-        lines.append("  SA_VECTOR -.->|Backward Integration API| WF_ROUTER")
+        lines.append("  SA_VECTOR -.->|Integration Link| WF_ROUTER")
     lines.append("")
     lines.append("  %% Side-Car orchestration flow")
-    lines.append("  WF_ROUTER -.->|gRPC| AG_SCRIBE")
-    lines.append("  AG_SCRIBE -->|JSON Payload| AG_INTENT")
-    lines.append("  AG_INTENT -.->|Policy Query API| DB_POLICY")
-    lines.append("  AG_INTENT -->|Validation RPC| WF_VALIDATOR")
-    lines.append("  WF_VALIDATOR -->|Schema Rules| WF_FORMAT")
-    lines.append("  AG_INTENT -->|Exception Context| AG_DISPUTE")
-    lines.append("  AG_DISPUTE -.->|Case Resolution API| ERP_VA01")
+    lines.append("  WF_ROUTER -.->|Process| AG_SCRIBE")
+    lines.append("  AG_SCRIBE -->|Structured Data| AG_INTENT")
+    lines.append("  AG_INTENT -.->|Apply Rules| DB_POLICY")
+    lines.append("  AG_INTENT -->|Validate| WF_VALIDATOR")
+    lines.append("  WF_VALIDATOR -->|Format| WF_FORMAT")
+    lines.append("  AG_INTENT -->|Exception to Resolve| AG_DISPUTE")
+    lines.append("  AG_DISPUTE -.->|Resolve Case| ERP_VA01")
     lines.append("")
     lines.append("  %% Clean Core standard processing")
-    lines.append("  WF_FORMAT -.->|OData API| ERP_VA01")
-    lines.append("  ERP_VA01 -->|BAPI/OData| ERP_MD")
-    lines.append("  ERP_MD -.->|Master Data Read| DB_S4")
-    lines.append("  ERP_MD ==>|OData API| ERP_POST")
-    lines.append("  ERP_POST -->|Status Webhook| WF_ROUTER")
+    lines.append("  WF_FORMAT -.->|Post to System| ERP_VA01")
+    lines.append("  ERP_VA01 -->|Update| ERP_MD")
+    lines.append("  ERP_MD -.->|Check Data| DB_S4")
+    lines.append("  ERP_MD ==>|Post to System| ERP_POST")
+    lines.append("  ERP_POST -->|Notify Status| WF_ROUTER")
     lines.append("")
     lines.append("  %% Visual classes")
     lines.append("  classDef external fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1px;")

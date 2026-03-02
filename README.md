@@ -44,6 +44,8 @@ Final outputs:
 - `outputs/<thread_id>/process_blueprint.xml` (`<VisualArchitecture version="2.0">` XML wrapper)
 - `outputs/<thread_id>/process_blueprint.mmd` (raw Mermaid graph)
 - `outputs/<thread_id>/process_blueprint.svg` (rendered image, auto-generated when `mmdc` or `npx` is available)
+- `outputs/<thread_id>/friction_points.json` (Phase 1 synthesis artifact)
+- `outputs/<thread_id>/path_classification.json` (Phase 2 pathing/confidence artifact)
 
 Blueprint zoning contract (strict):
 - `subgraph External_Intake [...]`
@@ -59,6 +61,16 @@ If SVG is not generated, set `CHROME_PATH` to your Chrome executable and rerun `
 ```powershell
 $env:CHROME_PATH="C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
+
+## OCR support
+- Standalone image ingestion with OCR: `.png`, `.jpg`, `.jpeg`, `.webp`, `.bmp`, `.tiff`, `.tif`.
+- PDF ingestion includes text-layer extraction plus OCR for scanned/image-heavy pages with short text.
+- PPTX ingestion includes OCR for inserted picture shapes in addition to regular text boxes.
+
+System dependencies:
+- Tesseract OCR must be installed and available on `PATH` for OCR extraction.
+- Poppler is required for PDF page rendering via `pdf2image` (used for PDF OCR).
+- If Tesseract or Poppler is missing, ingestion degrades gracefully and records warnings/errors; the workflow does not crash.
 
 ## Regional rules hardcoded
 - `ANZ VA01` is an exception fallback rule.

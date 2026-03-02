@@ -112,28 +112,29 @@ def validate_mermaid_xml(mermaid_xml: str) -> None:
         raise ValueError("MermaidData element missing.")
 
     content = (mermaid_data.text or "").strip()
-    required_tokens = [
+    # Structure: required subgraphs and connection types (business-friendly labels).
+    required_structure = [
         "graph TD",
         "subgraph External_Intake",
         "subgraph Agentic_SideCar",
         "subgraph Clean_Core_ERP",
-        "{{The Scribe}}",
+        "{{Doc Extractor}}",
         "{{Intent Analyzer}}",
-        "{{Dispute Judge}}",
-        "([Email Router])",
-        "([Data Validator])",
-        "([Formatting Engine])",
-        "[VA01 API]",
-        "[Master Data Check]",
-        "[Final Order Posting]",
-        "[(S/4HANA Master Data)]",
-        "[(Regional Policy DB)]",
+        "{{Dispute Resolver}}",
+        "([Order Router])",
+        "([Validator])",
+        "([Format Engine])",
+        "[Create Order]",
+        "[Validation]",
+        "[Post Order]",
+        "[(Master Data)]",
+        "[(Policy Rules)]",
     ]
-    for token in required_tokens:
+    for token in required_structure:
         if token not in content:
-            raise ValueError(f"Mermaid diagram missing token: {token}")
+            raise ValueError(f"Mermaid diagram missing required structure: {token}")
 
-    # Connection semantics: solid, dotted, and critical thick path must exist with protocol labels.
+    # Connection semantics: solid, dotted, and critical thick path must exist.
     if "-->|" not in content:
         raise ValueError("Mermaid diagram must include solid protocol-labeled flows (-->|...|).")
     if "-.->|" not in content:
@@ -141,22 +142,19 @@ def validate_mermaid_xml(mermaid_xml: str) -> None:
     if "==>|" not in content:
         raise ValueError("Mermaid diagram must include thick protocol-labeled critical flow (==>|...|).")
 
-    if "Webhook" not in content or "gRPC" not in content or "OData API" not in content:
-        raise ValueError("Mermaid diagram must label links with protocol names (Webhook, gRPC, OData API).")
-
-    # Regional logic enforcement.
+    # Regional logic enforcement (structure and region-specific nodes).
     if "south africa" in context_region or context_region in {"za", "sa"}:
         if "[(Vector 3PL)]" not in content:
             raise ValueError("South Africa blueprint must include Vector 3PL persistence node.")
-        if "Backward Integration API" not in content:
-            raise ValueError("South Africa blueprint must include backward integration dotted link.")
+        if "Integration Link" not in content:
+            raise ValueError("South Africa blueprint must include integration link.")
     if "uruguay" in context_region and "{{Power Street Sync}}" not in content:
         raise ValueError("Uruguay blueprint must include Power Street Sync adaptive intake node.")
     if "china" in context_region:
-        if "[Digital Hub Gateway]" not in content:
-            raise ValueError("China blueprint must include Digital Hub Gateway.")
-        if "CH_EMAIL -->|Webhook| CN_GATEWAY" not in content:
-            raise ValueError("China blueprint must route traffic through Digital Hub Gateway before Side-Car.")
+        if "CN_GATEWAY" not in content:
+            raise ValueError("China blueprint must include regional gateway node.")
+        if "CH_EMAIL -->|" not in content or "CN_GATEWAY" not in content:
+            raise ValueError("China blueprint must route intake through gateway before Side-Car.")
 
 
 def validate_methodology_compliance(state: dict[str, Any], min_report_words: int = 2000) -> None:

@@ -8,12 +8,12 @@ from langgraph.graph.state import CompiledStateGraph
 
 from process_reimagination_agent.config import Settings, get_settings
 from process_reimagination_agent.nodes import (
-    Architect_Node,
     Blueprint_Node,
     Human_Escalation_Node,
     Input_Refiner_Node,
     Quality_Control_Node,
-    Synthesizer_Node,
+    friction_points_node,
+    path_classifier_node,
     quality_route,
 )
 from process_reimagination_agent.state import AgentState
@@ -29,16 +29,16 @@ def build_graph(
     runtime_settings = settings or get_settings()
 
     graph = StateGraph(AgentState)
-    graph.add_node("Synthesizer_Node", lambda state: Synthesizer_Node(state, runtime_settings))
+    graph.add_node("friction_points_node", lambda state: friction_points_node(state, runtime_settings))
     graph.add_node("Input_Refiner_Node", lambda state: Input_Refiner_Node(state, runtime_settings))
-    graph.add_node("Architect_Node", lambda state: Architect_Node(state, runtime_settings))
+    graph.add_node("path_classifier_node", lambda state: path_classifier_node(state, runtime_settings))
     graph.add_node("Quality_Control_Node", lambda state: Quality_Control_Node(state, runtime_settings))
     graph.add_node("Blueprint_Node", lambda state: Blueprint_Node(state, runtime_settings))
     graph.add_node("Human_Escalation_Node", lambda state: Human_Escalation_Node(state, runtime_settings))
 
-    graph.add_edge(START, "Synthesizer_Node")
-    graph.add_edge("Synthesizer_Node", "Architect_Node")
-    graph.add_edge("Architect_Node", "Quality_Control_Node")
+    graph.add_edge(START, "friction_points_node")
+    graph.add_edge("friction_points_node", "path_classifier_node")
+    graph.add_edge("path_classifier_node", "Quality_Control_Node")
 
     # Mandatory quality-control loop:
     # confidence > 95% => Blueprint
@@ -53,7 +53,7 @@ def build_graph(
             "escalate": "Human_Escalation_Node",
         },
     )
-    graph.add_edge("Input_Refiner_Node", "Architect_Node")
+    graph.add_edge("Input_Refiner_Node", "path_classifier_node")
     graph.add_edge("Blueprint_Node", END)
     graph.add_edge("Human_Escalation_Node", END)
 

@@ -170,6 +170,37 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
         state["errors"] = list(state.get("errors", []))
         state["errors"].append(str(render_artifact["warning"]))
 
+    phase_status = dict(state.get("phase_status", {}))
+    _save_json(
+        output_dir / "friction_points.json",
+        {
+            "process_name": state.get("process_name", ""),
+            "context_region": state.get("context_region", ""),
+            "cognitive_friction_logs": state.get("cognitive_friction_logs", []),
+            "regional_nuances": state.get("regional_nuances", {}),
+            "phase_status": {
+                "phase_1_current_reality_synthesis": phase_status.get("phase_1_current_reality_synthesis", "unknown"),
+            },
+            "errors": state.get("errors", []),
+        },
+    )
+    _save_json(
+        output_dir / "path_classification.json",
+        {
+            "process_name": state.get("process_name", ""),
+            "context_region": state.get("context_region", ""),
+            "path_decisions": state.get("path_decisions", []),
+            "confidence_score": state.get("confidence_score", 0.0),
+            "quality_feedback": state.get("quality_feedback", []),
+            "quality_gate_result": state.get("quality_gate_result", ""),
+            "refinement_iterations": state.get("refinement_iterations", 0),
+            "phase_status": {
+                "phase_2_agentic_reasoning": phase_status.get("phase_2_agentic_reasoning", "unknown"),
+            },
+            "errors": state.get("errors", []),
+        },
+    )
+
     _save_json(output_dir / "final_state.json", state)
 
 

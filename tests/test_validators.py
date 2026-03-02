@@ -53,92 +53,93 @@ def test_validate_mermaid_xml_accepts_compliant_xml() -> None:
   <DiagramType>Tiered_Agentic_SideCar</DiagramType>
   <MermaidData><![CDATA[
 graph TD
-  subgraph External_Intake [External Intake]
-    CH_EMAIL([Email/PDF Intake]):::external
-    CH_CHAT([WhatsApp/Chat Intake]):::external
-    CH_EDI([EDI Intake]):::external
+  subgraph External_Intake [Customer Channels]
+    CH_EMAIL([Email/PDF]):::external
+    CH_CHAT([WhatsApp/Chat]):::external
+    CH_EDI([EDI/Portal]):::external
     UY_SYNC{{Power Street Sync}}:::agent
   end
 
-  subgraph Agentic_SideCar [Agentic SideCar]
-    AG_SCRIBE{{The Scribe}}:::agent
+  subgraph Agentic_SideCar [Intelligent Automation]
+    AG_SCRIBE{{Doc Extractor}}:::agent
     AG_INTENT{{Intent Analyzer}}:::agent
-    AG_DISPUTE{{Dispute Judge}}:::agent
-    WF_ROUTER([Email Router]):::workflow
-    WF_VALIDATOR([Data Validator]):::workflow
-    WF_FORMAT([Formatting Engine]):::workflow
-    DB_POLICY[(Regional Policy DB)]:::persistence
+    AG_DISPUTE{{Dispute Resolver}}:::agent
+    WF_ROUTER([Order Router]):::workflow
+    WF_VALIDATOR([Validator]):::workflow
+    WF_FORMAT([Format Engine]):::workflow
+    DB_POLICY[(Policy Rules)]:::persistence
   end
 
-  subgraph Clean_Core_ERP [Clean Core ERP]
-    ERP_VA01[VA01 API]:::core
-    ERP_MD[Master Data Check]:::core
-    ERP_POST[Final Order Posting]:::core
-    DB_S4[(S/4HANA Master Data)]:::persistence
+  subgraph Clean_Core_ERP [Core System]
+    ERP_VA01[Create Order]:::core
+    ERP_MD[Validation]:::core
+    ERP_POST[Post Order]:::core
+    DB_S4[(Master Data)]:::persistence
   end
 
-  CH_EMAIL -->|Webhook| UY_SYNC
-  CH_CHAT -->|Webhook| UY_SYNC
-  CH_EDI -->|AS2| UY_SYNC
-  UY_SYNC -->|gRPC| AG_SCRIBE
-  WF_ROUTER -.->|gRPC| AG_SCRIBE
-  AG_SCRIBE -->|JSON Payload| AG_INTENT
-  AG_INTENT -.->|Policy Query API| DB_POLICY
-  AG_INTENT -->|Validation RPC| WF_VALIDATOR
-  WF_VALIDATOR -->|Schema Rules| WF_FORMAT
-  AG_INTENT -->|Exception Context| AG_DISPUTE
-  AG_DISPUTE -.->|Case Resolution API| ERP_VA01
-  WF_FORMAT -.->|OData API| ERP_VA01
-  ERP_VA01 -->|BAPI/OData| ERP_MD
-  ERP_MD -.->|Master Data Read| DB_S4
-  ERP_MD ==>|OData API| ERP_POST
-  ERP_POST -->|Status Webhook| WF_ROUTER
+  CH_EMAIL -->|Send| UY_SYNC
+  CH_CHAT -->|Send| UY_SYNC
+  CH_EDI -->|Submit| UY_SYNC
+  UY_SYNC -->|Process| AG_SCRIBE
+  WF_ROUTER -.->|Process| AG_SCRIBE
+  AG_SCRIBE -->|Structured Data| AG_INTENT
+  AG_INTENT -.->|Apply Rules| DB_POLICY
+  AG_INTENT -->|Validate| WF_VALIDATOR
+  WF_VALIDATOR -->|Format| WF_FORMAT
+  AG_INTENT -->|Exception to Resolve| AG_DISPUTE
+  AG_DISPUTE -.->|Resolve Case| ERP_VA01
+  WF_FORMAT -.->|Post to System| ERP_VA01
+  ERP_VA01 -->|Update| ERP_MD
+  ERP_MD -.->|Check Data| DB_S4
+  ERP_MD ==>|Post to System| ERP_POST
+  ERP_POST -->|Notify Status| WF_ROUTER
   ]]></MermaidData>
 </VisualArchitecture>"""
     validate_mermaid_xml(xml)
 
 
 def test_validate_mermaid_xml_rejects_missing_china_gateway() -> None:
+    # China region requires CN_GATEWAY and routing through it; this diagram routes directly to WF_ROUTER.
     xml = """<VisualArchitecture version="2.0">
   <Region>China</Region>
   <DiagramType>Tiered_Agentic_SideCar</DiagramType>
   <MermaidData><![CDATA[
 graph TD
-  subgraph External_Intake [External Intake]
-    CH_EMAIL([Email/PDF Intake]):::external
-    CH_CHAT([WhatsApp/Chat Intake]):::external
-    CH_EDI([EDI Intake]):::external
+  subgraph External_Intake [Customer Channels]
+    CH_EMAIL([Email/PDF]):::external
+    CH_CHAT([WhatsApp/Chat]):::external
+    CH_EDI([EDI/Portal]):::external
   end
-  subgraph Agentic_SideCar [Agentic SideCar]
-    AG_SCRIBE{{The Scribe}}:::agent
+  subgraph Agentic_SideCar [Intelligent Automation]
+    AG_SCRIBE{{Doc Extractor}}:::agent
     AG_INTENT{{Intent Analyzer}}:::agent
-    AG_DISPUTE{{Dispute Judge}}:::agent
-    WF_ROUTER([Email Router]):::workflow
-    WF_VALIDATOR([Data Validator]):::workflow
-    WF_FORMAT([Formatting Engine]):::workflow
-    DB_POLICY[(Regional Policy DB)]:::persistence
+    AG_DISPUTE{{Dispute Resolver}}:::agent
+    WF_ROUTER([Order Router]):::workflow
+    WF_VALIDATOR([Validator]):::workflow
+    WF_FORMAT([Format Engine]):::workflow
+    DB_POLICY[(Policy Rules)]:::persistence
   end
-  subgraph Clean_Core_ERP [Clean Core ERP]
-    ERP_VA01[VA01 API]:::core
-    ERP_MD[Master Data Check]:::core
-    ERP_POST[Final Order Posting]:::core
-    DB_S4[(S/4HANA Master Data)]:::persistence
+  subgraph Clean_Core_ERP [Core System]
+    ERP_VA01[Create Order]:::core
+    ERP_MD[Validation]:::core
+    ERP_POST[Post Order]:::core
+    DB_S4[(Master Data)]:::persistence
   end
-  CH_EMAIL -->|Webhook| WF_ROUTER
-  CH_CHAT -->|Webhook| WF_ROUTER
-  CH_EDI -->|AS2| WF_ROUTER
-  WF_ROUTER -.->|gRPC| AG_SCRIBE
-  AG_SCRIBE -->|JSON Payload| AG_INTENT
-  AG_INTENT -.->|Policy Query API| DB_POLICY
-  AG_INTENT -->|Validation RPC| WF_VALIDATOR
-  WF_VALIDATOR -->|Schema Rules| WF_FORMAT
-  AG_INTENT -->|Exception Context| AG_DISPUTE
-  AG_DISPUTE -.->|Case Resolution API| ERP_VA01
-  WF_FORMAT -.->|OData API| ERP_VA01
-  ERP_VA01 -->|BAPI/OData| ERP_MD
-  ERP_MD -.->|Master Data Read| DB_S4
-  ERP_MD ==>|OData API| ERP_POST
-  ERP_POST -->|Status Webhook| WF_ROUTER
+  CH_EMAIL -->|Send| WF_ROUTER
+  CH_CHAT -->|Send| WF_ROUTER
+  CH_EDI -->|Submit| WF_ROUTER
+  WF_ROUTER -.->|Process| AG_SCRIBE
+  AG_SCRIBE -->|Structured Data| AG_INTENT
+  AG_INTENT -.->|Apply Rules| DB_POLICY
+  AG_INTENT -->|Validate| WF_VALIDATOR
+  WF_VALIDATOR -->|Format| WF_FORMAT
+  AG_INTENT -->|Exception to Resolve| AG_DISPUTE
+  AG_DISPUTE -.->|Resolve Case| ERP_VA01
+  WF_FORMAT -.->|Post to System| ERP_VA01
+  ERP_VA01 -->|Update| ERP_MD
+  ERP_MD -.->|Check Data| DB_S4
+  ERP_MD ==>|Post to System| ERP_POST
+  ERP_POST -->|Notify Status| WF_ROUTER
   ]]></MermaidData>
 </VisualArchitecture>"""
     with pytest.raises(ValueError):
