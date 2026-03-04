@@ -23,6 +23,8 @@ class AgentState(TypedDict, total=False):
     pain_points: list[str]
     regional_nuances: dict[str, Any]
     evidence_references: list[dict[str, str]]
+    canonical_documents: list[dict[str, Any]]
+    process_graphs: list[dict[str, Any]]
     phase_status: dict[str, str]
     confidence_score: float
     trust_gap_phase: TrustGapPhase
@@ -34,6 +36,7 @@ class AgentState(TypedDict, total=False):
     errors: list[str]
     quality_gate_result: Literal["refine", "blueprint", "escalate"]
     force_confidence_override: float
+    path_classifier_prompt: str
 
 
 def create_initial_state(manifest: InputManifest, trust_gap_phase: TrustGapPhase = "Shadow") -> AgentState:
@@ -48,6 +51,8 @@ def create_initial_state(manifest: InputManifest, trust_gap_phase: TrustGapPhase
         pain_points=manifest.pain_points,
         regional_nuances={},
         evidence_references=[],
+        canonical_documents=[],
+        process_graphs=[],
         phase_status={
             "phase_1_current_reality_synthesis": "pending",
             "phase_2_agentic_reasoning": "pending",

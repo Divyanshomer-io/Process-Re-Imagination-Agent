@@ -46,8 +46,9 @@ Final outputs:
 - `outputs/<thread_id>/process_blueprint.xml` (`<VisualArchitecture version="2.0">` XML wrapper)
 - `outputs/<thread_id>/process_blueprint.mmd` (raw Mermaid graph)
 - `outputs/<thread_id>/process_blueprint.svg` (rendered image, auto-generated when `mmdc` or `npx` is available)
-- `outputs/<thread_id>/friction_points.json` (Phase 1 synthesis artifact)
-- `outputs/<thread_id>/path_classification.json` (Phase 2 pathing/confidence artifact)
+- `outputs/<thread_id>/friction_points.md` (Phase 1 Cognitive Friction Analysis table)
+- `outputs/<thread_id>/friction_points.json` (Phase 1 machine-readable data)
+- `outputs/<thread_id>/path_classification.md` (Phase 2 Path Classification table)
 
 Blueprint zoning contract (strict):
 - `subgraph External_Intake [...]`

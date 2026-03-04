@@ -1,0 +1,44 @@
+{
+  "thread_id": "29eb851f-343b-4a27-888d-e9cc483254e9",
+  "reason": "run_failed: All configured LLM backends failed. Errors: DAIA: HTTPSConnectionPool(host='daia.privatelink.azurewebsites.net', port=443): Max retries exceeded with url: /authentication-service/api/v1/auth/generate-token (Caused by NameResolutionError(\"HTTPSConnection(host='daia.privatelink.azurewebsites.net', port=443): Failed to resolve 'daia.privatelink.azurewebsites.net' ([Errno 11001] getaddrinfo failed)\"))",
+  "payload": {
+    "state": {
+      "raw_inputs": {
+        "manifest": {
+          "process_name": "Test",
+          "context_region": "Global",
+          "pain_points": [],
+          "files": [],
+          "additional_context": {}
+        },
+        "channel": "",
+        "order_status": "open"
+      },
+      "cognitive_friction_logs": [],
+      "path_decisions": [],
+      "refined_blueprint": {},
+      "process_name": "Test",
+      "context_region": "Global",
+      "pain_points": [],
+      "regional_nuances": {},
+      "evidence_references": [],
+      "canonical_documents": [],
+      "process_graphs": [],
+      "phase_status": {
+        "phase_1_current_reality_synthesis": "pending",
+        "phase_2_agentic_reasoning": "pending",
+        "phase_3_blueprint_generation": "pending"
+      },
+      "confidence_score": 0.0,
+      "trust_gap_phase": "Shadow",
+      "quality_feedback": [],
+      "refinement_iterations": 0,
+      "manual_approval": false,
+      "strategy_report_markdown": "",
+      "mermaid_xml": "",
+      "errors": [],
+      "quality_gate_result": "refine"
+    }
+  },
+  "created_at_epoch": 1772523289
+}

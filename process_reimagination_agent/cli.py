@@ -5,6 +5,7 @@ import os
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -15,10 +16,20 @@ from langgraph.checkpoint.memory import MemorySaver
 from process_reimagination_agent.config import Settings, get_settings
 from process_reimagination_agent.graph import build_graph
 from process_reimagination_agent.models import InputManifest
+from process_reimagination_agent.nodes import _build_path_classification_table, build_friction_points_markdown
+from process_reimagination_agent.observability import MetricsCollector, get_logger, render_slo_dashboard
+from process_reimagination_agent.reliability import (
+    JobEnvelope,
+    InMemoryJobQueue,
+    execute_with_retry,
+    persist_artifact,
+    write_dead_letter,
+)
 from process_reimagination_agent.state import create_initial_state
 from process_reimagination_agent.validators import validate_methodology_compliance
 
 app = typer.Typer(help="McCain Agentic Process Re-Imagination Architect (LangGraph)")
+LOGGER = get_logger()
 
 
 def _json_safe(value: Any) -> Any:
@@ -171,12 +182,21 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
         state["errors"].append(str(render_artifact["warning"]))
 
     phase_status = dict(state.get("phase_status", {}))
+    friction_logs = state.get("cognitive_friction_logs", [])
+
+    friction_md = build_friction_points_markdown(
+        process_name=state.get("process_name", "Process"),
+        context_region=state.get("context_region", "Global"),
+        cognitive_friction_logs=friction_logs,
+    )
+    (output_dir / "friction_points.md").write_text(friction_md, encoding="utf-8")
+
     _save_json(
         output_dir / "friction_points.json",
         {
             "process_name": state.get("process_name", ""),
             "context_region": state.get("context_region", ""),
-            "cognitive_friction_logs": state.get("cognitive_friction_logs", []),
+            "cognitive_friction_logs": friction_logs,
             "regional_nuances": state.get("regional_nuances", {}),
             "evidence_references": state.get("evidence_references", []),
             "phase_status": {
@@ -185,24 +205,19 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
             "errors": state.get("errors", []),
         },
     )
-    _save_json(
-        output_dir / "path_classification.json",
-        {
-            "process_name": state.get("process_name", ""),
-            "context_region": state.get("context_region", ""),
-            "path_decisions": state.get("path_decisions", []),
-            "confidence_score": state.get("confidence_score", 0.0),
-            "quality_feedback": state.get("quality_feedback", []),
-            "quality_gate_result": state.get("quality_gate_result", ""),
-            "refinement_iterations": state.get("refinement_iterations", 0),
-            "phase_status": {
-                "phase_2_agentic_reasoning": phase_status.get("phase_2_agentic_reasoning", "unknown"),
-            },
-            "errors": state.get("errors", []),
-        },
+    path_table = _build_path_classification_table(
+        state.get("path_decisions", []),
+        friction_logs,
     )
+    path_classification_md = (
+        f"# Path Classification (A/B/C): {state.get('process_name', 'Process')}"
+        f" ({state.get('context_region', 'Global')})\n\n"
+        f"{path_table}\n"
+    )
+    (output_dir / "path_classification.md").write_text(path_classification_md, encoding="utf-8")
 
     _save_json(output_dir / "final_state.json", state)
+    persist_artifact(settings, thread_id=thread_id, name="final_state.json", payload=_json_safe(state))
 
 
 @app.command("run")
@@ -216,6 +231,19 @@ def run_workflow(
     order_status: str = typer.Option("open", help="Optional order status hint for regional routing"),
 ) -> None:
     settings = get_settings()
+    settings.validate_llm_available()
+
+    backends: list[str] = []
+    if settings.daia_enabled:
+        backends.append(f"DAIA ({settings.daia_model})")
+    if settings.azure_enabled:
+        backends.append(f"Azure OpenAI ({settings.azure_openai_deployment})")
+    if settings.openai_enabled:
+        backends.append(f"OpenAI ({settings.openai_model})")
+    LOGGER.info("LLM backends configured: %s", " > ".join(backends))
+
+    metrics = MetricsCollector()
+    start_time = time.perf_counter()
     runtime_thread_id = thread_id or str(uuid4())
     manifest = InputManifest(
         process_name=process_name,
@@ -226,16 +254,48 @@ def run_workflow(
     state = create_initial_state(manifest, trust_gap_phase=settings.trust_gap_default_phase)
     state["raw_inputs"]["channel"] = channel
     state["raw_inputs"]["order_status"] = order_status
+    queue = InMemoryJobQueue()
+    queue.enqueue(JobEnvelope(job_id=runtime_thread_id, payload={"state": state}))
+    metrics.incr("jobs_enqueued")
 
     checkpointer = MemorySaver()
     graph = build_graph(checkpointer=checkpointer, settings=settings, interrupt_before_blueprint=True)
     config = {"configurable": {"thread_id": runtime_thread_id}}
-    graph.invoke(state, config=config)
+
+    envelope = queue.dequeue()
+    if not envelope:
+        raise typer.BadParameter("No queued job available for processing.")
+    metrics.incr("jobs_started")
+
+    def _invoke() -> None:
+        graph.invoke(envelope.payload["state"], config=config)
+
+    try:
+        execute_with_retry(
+            _invoke,
+            settings=settings,
+            on_retry=lambda attempt, exc: LOGGER.warning(
+                "run retry thread_id=%s attempt=%s error=%s", runtime_thread_id, attempt, exc
+            ),
+        )
+    except Exception as exc:
+        metrics.incr("jobs_failed")
+        dead_path = write_dead_letter(
+            settings,
+            thread_id=runtime_thread_id,
+            reason=f"run_failed: {exc}",
+            payload={"state": _json_safe(envelope.payload.get("state", {}))},
+        )
+        LOGGER.error("run failed thread_id=%s dead_letter=%s error=%s", runtime_thread_id, dead_path, exc)
+        raise
+
     snapshot = graph.get_state(config)
     current_state = dict(snapshot.values or {})
+    metrics.incr("jobs_succeeded")
 
     pending_path = _pending_state_path(settings, runtime_thread_id)
     _save_json(pending_path, current_state)
+    persist_artifact(settings, thread_id=runtime_thread_id, name="pending_state.json", payload=_json_safe(current_state))
 
     next_nodes = tuple(snapshot.next or ())
     if "Blueprint_Node" in next_nodes:
@@ -243,6 +303,14 @@ def run_workflow(
         typer.echo("Execution paused at Trust Gap checkpoint before Blueprint_Node.")
         typer.echo(f"Pending state: {pending_path}")
         typer.echo("Approve and continue with: cli resume --thread-id <THREAD_ID> --approver <NAME>")
+        metrics.timing("run_workflow", time.perf_counter() - start_time)
+        if settings.enable_json_metrics:
+            metrics_path = _output_dir(settings, runtime_thread_id) / "metrics.json"
+            metrics.write_json(metrics_path)
+            snapshot = metrics.snapshot()
+            (_output_dir(settings, runtime_thread_id) / "slo_dashboard.md").write_text(
+                render_slo_dashboard(snapshot), encoding="utf-8"
+            )
         return
 
     if current_state.get("phase_status", {}).get("phase_3_blueprint_generation") == "completed":
@@ -250,10 +318,26 @@ def run_workflow(
         _write_final_outputs(settings, runtime_thread_id, current_state)
         typer.echo(f"Thread: {runtime_thread_id}")
         typer.echo("Workflow completed without interruption.")
+        metrics.timing("run_workflow", time.perf_counter() - start_time)
+        if settings.enable_json_metrics:
+            metrics_path = _output_dir(settings, runtime_thread_id) / "metrics.json"
+            metrics.write_json(metrics_path)
+            snapshot = metrics.snapshot()
+            (_output_dir(settings, runtime_thread_id) / "slo_dashboard.md").write_text(
+                render_slo_dashboard(snapshot), encoding="utf-8"
+            )
         return
 
     typer.echo(f"Thread: {runtime_thread_id}")
     typer.echo("Workflow ended before blueprint generation. Inspect pending_state.json for escalation details.")
+    metrics.timing("run_workflow", time.perf_counter() - start_time)
+    if settings.enable_json_metrics:
+        metrics_path = _output_dir(settings, runtime_thread_id) / "metrics.json"
+        metrics.write_json(metrics_path)
+        snapshot = metrics.snapshot()
+        (_output_dir(settings, runtime_thread_id) / "slo_dashboard.md").write_text(
+            render_slo_dashboard(snapshot), encoding="utf-8"
+        )
 
 
 @app.command("resume")
@@ -263,6 +347,9 @@ def resume_workflow(
     notes: str = typer.Option("", help="Approval notes"),
 ) -> None:
     settings = get_settings()
+    settings.validate_llm_available()
+    metrics = MetricsCollector()
+    start_time = time.perf_counter()
     pending_path = _pending_state_path(settings, thread_id)
     if not pending_path.exists():
         raise typer.BadParameter(f"No pending state found for thread {thread_id} at {pending_path}")
@@ -279,12 +366,39 @@ def resume_workflow(
         settings=settings,
         interrupt_before_blueprint=False,
     )
-    completed_state = graph.invoke(state, config={"configurable": {"thread_id": thread_id}})
+    try:
+        completed_state = execute_with_retry(
+            lambda: graph.invoke(state, config={"configurable": {"thread_id": thread_id}}),
+            settings=settings,
+            on_retry=lambda attempt, exc: LOGGER.warning(
+                "resume retry thread_id=%s attempt=%s error=%s", thread_id, attempt, exc
+            ),
+        )
+    except Exception as exc:
+        metrics.incr("resume_failed")
+        dead_path = write_dead_letter(
+            settings,
+            thread_id=thread_id,
+            reason=f"resume_failed: {exc}",
+            payload={"state": _json_safe(state)},
+        )
+        LOGGER.error("resume failed thread_id=%s dead_letter=%s error=%s", thread_id, dead_path, exc)
+        raise
     final_state = dict(completed_state or {})
 
     validate_methodology_compliance(final_state, min_report_words=settings.min_report_words)
     _write_final_outputs(settings, thread_id, final_state)
     pending_path.unlink(missing_ok=True)
+    persist_artifact(settings, thread_id=thread_id, name="resume_final_state.json", payload=_json_safe(final_state))
+    metrics.incr("resume_succeeded")
+    metrics.timing("resume_workflow", time.perf_counter() - start_time)
+    if settings.enable_json_metrics:
+        metrics_path = _output_dir(settings, thread_id) / "metrics_resume.json"
+        metrics.write_json(metrics_path)
+        snapshot = metrics.snapshot()
+        (_output_dir(settings, thread_id) / "slo_dashboard.md").write_text(
+            render_slo_dashboard(snapshot), encoding="utf-8"
+        )
 
     typer.echo(f"Thread: {thread_id}")
     typer.echo("Manual approval recorded. Blueprint and strategy report generated.")

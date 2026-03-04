@@ -4,6 +4,8 @@ import io
 from pathlib import Path
 from typing import Any
 
+from process_reimagination_agent.config import Settings, get_settings
+from process_reimagination_agent.diagram_extraction import extract_canonical_document
 from process_reimagination_agent.models import InputManifest
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tiff", ".tif"}
@@ -172,10 +174,13 @@ def extract_text_from_pptx(file_path: Path, warnings: list[str] | None = None) -
     return "\n".join(chunks).strip()
 
 
-def ingest_manifest(manifest: InputManifest) -> dict[str, Any]:
+def ingest_manifest(manifest: InputManifest, *, settings: Settings | None = None) -> dict[str, Any]:
+    runtime_settings = settings or get_settings()
     documents: list[dict[str, Any]] = []
     extraction_errors: list[str] = []
     combined_text_parts: list[str] = []
+    canonical_documents: list[dict[str, Any]] = []
+    process_graphs: list[dict[str, Any]] = []
 
     for file_name in manifest.files:
         file_path = Path(file_name).expanduser()
@@ -193,6 +198,21 @@ def ingest_manifest(manifest: InputManifest) -> dict[str, Any]:
             extraction_warnings: list[str] = []
             content = extract_text(file_path, mime_type, warnings=extraction_warnings)
             record["content"] = content
+            source_id = f"DOC{len(documents) + 1}"
+            canonical_doc = extract_canonical_document(
+                file_path=file_path,
+                mime_type=mime_type,
+                extracted_text=content,
+                settings=runtime_settings,
+                source_id=source_id,
+                warnings=extraction_warnings,
+            )
+            record["source_id"] = source_id
+            record["extraction_confidence"] = canonical_doc.extraction_confidence
+            if canonical_doc.graph:
+                record["graph_confidence"] = canonical_doc.graph.extraction_confidence
+                process_graphs.append(canonical_doc.graph.model_dump())
+            canonical_documents.append(canonical_doc.model_dump())
             if extraction_warnings:
                 record["warnings"] = extraction_warnings
                 extraction_errors.extend(extraction_warnings)
@@ -211,6 +231,8 @@ def ingest_manifest(manifest: InputManifest) -> dict[str, Any]:
     return {
         "manifest": manifest.model_dump(),
         "documents": documents,
+        "canonical_documents": canonical_documents,
+        "process_graphs": process_graphs,
         "combined_text": combined_text,
         "extraction_errors": extraction_errors,
     }

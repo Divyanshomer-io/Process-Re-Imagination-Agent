@@ -18,7 +18,17 @@ class InputManifest(BaseModel):
 class FrictionItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Cognitive Friction Analysis table columns (strict output schema).
+    friction_id: str = ""
     current_manual_action: str = Field(min_length=3)
+    where_in_process: str = "Not specified"
+    trigger_or_input_channel: str = "Not specified"
+    region_impacted: str = "Global"
+    systems_or_tools_mentioned: str = "Not specified"
+    why_its_friction: str = ""
+    open_questions: str = ""
+
+    # Internal classification fields used by downstream path-classifier and refiner.
     friction_type: str = Field(min_length=3)
     proposed_path: Literal["A", "B", "C"]
     rationale: str = Field(min_length=5)

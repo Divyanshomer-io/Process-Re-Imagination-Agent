@@ -1,0 +1,347 @@
+{
+  "raw_inputs": {
+    "manifest": {
+      "process_name": "Order Intake",
+      "context_region": "ANZ",
+      "pain_points": [
+        "Manual email/PDF order entry",
+        "Frequent order modifications",
+        "Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1)",
+        "Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1)",
+        "Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1)",
+        "Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1)"
+      ],
+      "files": [
+        "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt"
+      ],
+      "additional_context": {}
+    },
+    "channel": "",
+    "order_status": "open",
+    "friction_analysis_prompt": "TASK: Cognitive Friction Analysis (Table Output Only)\n\nRole: Principal Enterprise AI Architect and Business Transformation Strategist.\nMode: High reasoning.\n\nGoal\nIdentify \"Cognitive Friction\" in the provided process documents: places where humans act as middleware (e.g., transcribing data, making routine decisions, bridging system gaps).\n\nInputs\nYou will receive process maps, process documentation, regional nuances, and benchmark/best-practice material.\n\nOutput (STRICT)\nProduce ONLY a table titled \"Cognitive Friction Analysis\".\nDo not include narrative explanation outside the table.\n\nRules\n- Use ONLY what is explicitly supported by the provided documents.\n- If a detail is not stated, write \"Not specified\" and add it as an open question.\n- Each row represents ONE friction point (one manual bottleneck).\n- Provide evidence per row: document name + page/section + short quote/paraphrase.\n\nTable Columns (STRICT)\n- Friction_ID (F-001, F-002\u2026)\n- Current_Manual_Action (what humans do)\n- Where_in_Process (step/activity name as stated)\n- Trigger_or_Input_Channel (only if stated)\n- Region_Impacted (Global or specific regions only if stated)\n- Systems_or_Tools_Mentioned (only what is stated; else \"Not specified\")\n- Why_It's_Friction (1\u20132 lines: delay, rework, errors, compliance risk, etc.)\n- Evidence (Document + page/section + quote/paraphrase)\n- Open_Questions (only when needed)\n\nBegin\nRead the inputs and output the \"Cognitive Friction Analysis\" table only.\n",
+    "documents": [
+      {
+        "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+        "mime_type": "text/plain",
+        "content": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.\n\n",
+        "error": "",
+        "source_id": "DOC1",
+        "extraction_confidence": 0.0,
+        "graph_confidence": 0.0
+      }
+    ],
+    "canonical_documents": [
+      {
+        "source_id": "DOC1",
+        "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+        "mime_type": "text/plain",
+        "pages": [
+          {
+            "source_id": "DOC1",
+            "page_number": 1,
+            "page_type": "text",
+            "text_content": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.\n\n",
+            "extraction_method": "text_layer",
+            "confidence": 0.68,
+            "nodes": [],
+            "edges": [],
+            "lanes": [],
+            "warnings": []
+          }
+        ],
+        "graph": {
+          "graph_id": "DOC1-graph",
+          "nodes": [],
+          "edges": [],
+          "lanes": [],
+          "extraction_confidence": 0.0,
+          "unresolved_edges": 0,
+          "warnings": []
+        },
+        "extraction_confidence": 0.0,
+        "warnings": []
+      }
+    ],
+    "process_graphs": [
+      {
+        "graph_id": "DOC1-graph",
+        "nodes": [],
+        "edges": [],
+        "lanes": [],
+        "extraction_confidence": 0.0,
+        "unresolved_edges": 0,
+        "warnings": []
+      }
+    ],
+    "combined_text": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.",
+    "extraction_errors": [],
+    "approved_by": "qa.user",
+    "approval_notes": ""
+  },
+  "cognitive_friction_logs": [
+    {
+      "friction_id": "F-001",
+      "current_manual_action": "Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1)",
+      "where_in_process": "Order Intake / Data Entry",
+      "trigger_or_input_channel": "Email, PDF, Fax, Spreadsheet",
+      "region_impacted": "ANZ",
+      "systems_or_tools_mentioned": "SAP",
+      "why_its_friction": "Delay from manual re-keying; high transcription error rate; rework when data is misinterpreted.",
+      "open_questions": "",
+      "friction_type": "Human transcription and unstructured intake triage",
+      "proposed_path": "C",
+      "rationale": "Requires perception over unstructured payloads and adaptive extraction checks.",
+      "expected_kpi_shift": "60-80% faster intake and fewer keying defects",
+      "requires_perception": true,
+      "requires_reasoning": true,
+      "requires_adaptive_action": false,
+      "source_evidence": "DOC1 order_intake_notes.txt: \"take / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center chann...\""
+    },
+    {
+      "friction_id": "F-002",
+      "current_manual_action": "Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1)",
+      "where_in_process": "Order Amendment",
+      "trigger_or_input_channel": "Not specified",
+      "region_impacted": "ANZ",
+      "systems_or_tools_mentioned": "SAP (VA02, VA03)",
+      "why_its_friction": "Manual SAP transaction processing delays order amendment cycle; error-prone repetitive steps.",
+      "open_questions": "",
+      "friction_type": "Deterministic coordination and status handling",
+      "proposed_path": "B",
+      "rationale": "Change flows are repeatable and should be orchestrated via deterministic side-car workflows.",
+      "expected_kpi_shift": "20-35% faster order amendment cycle time",
+      "requires_perception": false,
+      "requires_reasoning": false,
+      "requires_adaptive_action": false,
+      "source_evidence": "DOC1 order_intake_notes.txt: \"o SAP. - Spreadsheet uploads from distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization b...\""
+    },
+    {
+      "friction_id": "F-003",
+      "current_manual_action": "Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1)",
+      "where_in_process": "Truck-Loading Order Capture",
+      "trigger_or_input_channel": "Power Street mobile channel",
+      "region_impacted": "ANZ",
+      "systems_or_tools_mentioned": "ERP, Power Street",
+      "why_its_friction": "Mobile payload variability causes format errors; same-day order capture delayed.",
+      "open_questions": "",
+      "friction_type": "Channel-specific adaptive intake handling",
+      "proposed_path": "C",
+      "rationale": "Requires adaptive action across mobile channel payload variability.",
+      "expected_kpi_shift": "35-55% faster same-day order capture with fewer format errors",
+      "requires_perception": true,
+      "requires_reasoning": true,
+      "requires_adaptive_action": true,
+      "source_evidence": "DOC1 order_intake_notes.txt: \"distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization before posting. - Deduction and dis...\""
+    },
+    {
+      "friction_id": "F-004",
+      "current_manual_action": "Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1)",
+      "where_in_process": "Dispute / Deduction Triage",
+      "trigger_or_input_channel": "Not specified",
+      "region_impacted": "ANZ",
+      "systems_or_tools_mentioned": "Not specified",
+      "why_its_friction": "Manual cross-system evidence reconciliation; extended dispute cycle time; compliance risk.",
+      "open_questions": "",
+      "friction_type": "Manual dispute triage and evidence reconciliation",
+      "proposed_path": "C",
+      "rationale": "Requires contextual reasoning over policy, order, and logistics evidence.",
+      "expected_kpi_shift": "30-50% dispute cycle-time reduction",
+      "requires_perception": true,
+      "requires_reasoning": true,
+      "requires_adaptive_action": true,
+      "source_evidence": "DOC1 order_intake_notes.txt: \"uguay Power Street channel payload requires normalization before posting. - Deduction and dispute processing is slow and manual. Regional nuances: - ANZ VA01 is a fallback excep...\""
+    },
+    {
+      "friction_id": "F-005",
+      "current_manual_action": "Manual email/PDF order entry",
+      "where_in_process": "Order Intake / Data Entry",
+      "trigger_or_input_channel": "Email, PDF, Spreadsheet",
+      "region_impacted": "ANZ",
+      "systems_or_tools_mentioned": "Not specified",
+      "why_its_friction": "Delay from manual re-keying; high transcription error rate.",
+      "open_questions": "",
+      "friction_type": "Human transcription and unstructured intake triage",
+      "proposed_path": "C",
+      "rationale": "Requires perception over unstructured documents and adaptive extraction checks.",
+      "expected_kpi_shift": "60-80% faster intake with lower transcription defects",
+      "requires_perception": true,
+      "requires_reasoning": true,
+      "requires_adaptive_action": false,
+      "source_evidence": "Pain point inventory"
+    },
+    {
+      "friction_id": "F-006",
+      "current_manual_action": "Frequent order modifications",
+      "where_in_process": "Not specified",
+      "trigger_or_input_channel": "Not specified",
+      "region_impacted": "ANZ",
+      "systems_or_tools_mentioned": "Not specified",
+      "why_its_friction": "Manual repetitive task creating delay in process execution.",
+      "open_questions": "",
+      "friction_type": "Deterministic coordination and status handling",
+      "proposed_path": "B",
+      "rationale": "Best handled via workflow orchestration and rule-driven automation.",
+      "expected_kpi_shift": "20-40% cycle-time improvement in repetitive tasks",
+      "requires_perception": false,
+      "requires_reasoning": false,
+      "requires_adaptive_action": false,
+      "source_evidence": "Pain point inventory"
+    }
+  ],
+  "path_decisions": [
+    {
+      "current_manual_action": "Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1)",
+      "path": "C",
+      "confidence": 0.9700000000000001,
+      "rationale": "Requires perception over unstructured payloads and adaptive extraction checks. Classified via mandatory Phase 2 suitability assessment.",
+      "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+      "side_car_component": "Agentic Intake Orchestrator",
+      "regional_overrides": []
+    },
+    {
+      "current_manual_action": "Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1)",
+      "path": "B",
+      "confidence": 0.9500000000000001,
+      "rationale": "Change flows are repeatable and should be orchestrated via deterministic side-car workflows. Classified via mandatory Phase 2 suitability assessment.",
+      "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+      "side_car_component": "Workflow Automation Side-Car",
+      "regional_overrides": []
+    },
+    {
+      "current_manual_action": "Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1)",
+      "path": "C",
+      "confidence": 0.9700000000000001,
+      "rationale": "Requires adaptive action across mobile channel payload variability. Classified via mandatory Phase 2 suitability assessment.",
+      "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+      "side_car_component": "Agentic Intake Orchestrator",
+      "regional_overrides": []
+    },
+    {
+      "current_manual_action": "Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1)",
+      "path": "C",
+      "confidence": 0.9700000000000001,
+      "rationale": "Requires contextual reasoning over policy, order, and logistics evidence. Classified via mandatory Phase 2 suitability assessment.",
+      "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+      "side_car_component": "Agentic Intake Orchestrator",
+      "regional_overrides": []
+    },
+    {
+      "current_manual_action": "Manual email/PDF order entry",
+      "path": "C",
+      "confidence": 0.9700000000000001,
+      "rationale": "Requires perception over unstructured documents and adaptive extraction checks. Classified via mandatory Phase 2 suitability assessment.",
+      "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+      "side_car_component": "Agentic Intake Orchestrator",
+      "regional_overrides": []
+    },
+    {
+      "current_manual_action": "Frequent order modifications",
+      "path": "B",
+      "confidence": 0.9500000000000001,
+      "rationale": "Best handled via workflow orchestration and rule-driven automation. Classified via mandatory Phase 2 suitability assessment.",
+      "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+      "side_car_component": "Workflow Automation Side-Car",
+      "regional_overrides": []
+    }
+  ],
+  "refined_blueprint": {
+    "strategy_report_markdown": "# Re-Imagined Strategy Report: Order Intake\n\n**Contents**\n- Executive Summary\n- Cognitive Friction Analysis\n- Source Evidence Register\n- Architecture of the Future State\n- Technical Stack\n- Integration Design Deep Dive\n- Agent Persona Reasoning Model\n- The Trust Gap Protocol\n- Path Design Decisions\n- Regional Policy Registry\n- Delivery and Rollout Plan\n- Appendix: Control and Operability Baseline\n- Executive Simplified Summary\n\n## Executive Summary\n\nThe One Big Move for Order Intake in ANZ is to replace human middleware with a Side-Car intelligence and orchestration layer that protects the SAP core while accelerating order-cycle execution. This architecture treats every intake channel as an event source, every exception as a managed decision point, and every ERP transaction as a standards-based API call rather than a custom-coded branch. The strategic benefit is immediate: higher touchless throughput, lower transcription defects, faster exception closure, and lower operational risk across regional variations. The design also keeps long-term cost under control by avoiding core-kernel customization and by consolidating complex logic into reusable side-car services. The methodology is intentionally strict: Phase 1 captures current reality and cognitive friction, Phase 2 maps each friction to Path A/B/C with explicit suitability logic, and Phase 3 produces a deployable blueprint backed by trust controls. The operating model is therefore transformation-ready and audit-ready from day one.\n\n## Cognitive Friction Analysis\n\n| Friction_ID | Current_Manual_Action | Where_in_Process | Trigger_or_Input_Channel | Region_Impacted | Systems_or_Tools_Mentioned | Why_It's_Friction | Evidence | Open_Questions |\n|---|---|---|---|---|---|---|---|---|\n| F-001 | Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1) | Order Intake / Data Entry | Email, PDF, Fax, Spreadsheet | ANZ | SAP | Delay from manual re-keying; high transcription error rate; rework when data is misinterpreted. | DOC1 order_intake_notes.txt: \"take / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads... |  |\n| F-002 | Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1) | Order Amendment | Not specified | ANZ | SAP (VA02, VA03) | Manual SAP transaction processing delays order amendment cycle; error-prone repetitive steps. | DOC1 order_intake_notes.txt: \"o SAP. - Spreadsheet uploads from distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel pa... |  |\n| F-003 | Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1) | Truck-Loading Order Capture | Power Street mobile channel | ANZ | ERP, Power Street | Mobile payload variability causes format errors; same-day order capture delayed. | DOC1 order_intake_notes.txt: \"distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization befor... |  |\n| F-004 | Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1) | Dispute / Deduction Triage | Not specified | ANZ | Not specified | Manual cross-system evidence reconciliation; extended dispute cycle time; compliance risk. | DOC1 order_intake_notes.txt: \"uguay Power Street channel payload requires normalization before posting. - Deduction and dispute processing is slow and manual. Regional nuances:... |  |\n| F-005 | Manual email/PDF order entry | Order Intake / Data Entry | Email, PDF, Spreadsheet | ANZ | Not specified | Delay from manual re-keying; high transcription error rate. | Pain point inventory |  |\n| F-006 | Frequent order modifications | Not specified | Not specified | ANZ | Not specified | Manual repetitive task creating delay in process execution. | Pain point inventory |  |\n\n## Source Evidence Register\n\nThe following references were derived from uploaded source artifacts and used to ground the friction and flow decisions in this report.\n\n| Reference ID | Source Artifact | Evidence Excerpt |\n|---|---|---|\n| DOC1 | order_intake_notes.txt | Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from... |\n\n## Architecture of the Future State\n\nThe future state is a hub-and-spoke operating model where the Agentic Side-Car is the controlled brain between channels and SAP. Personas are explicit: **The Intake Scribe** extracts and normalizes incoming order payloads; **The Intent Analyzer** classifies business intent and routes deterministic vs agentic work; **The Dispute Judge** handles contextual exceptions requiring evidence reasoning. Path C tasks stay in this layer and are executed with confidence scoring, policy checks, and human escalation hooks. Path B tasks are delivered as deterministic workflow components such as routing, formatting, and validation engines. Path A tasks are pushed back to standard ERP APIs and data checks. Regional variations are managed through policy injection and adapter patterns in the side-car, not through core transaction branching. This architecture lets McCain scale automation without coupling business variability to ERP internals.\n\n## Technical Stack\n\nSystem of Intelligence: LangGraph orchestration, policy guardrails, confidence routing, and optional LLM services configured through Azure/OpenAI-compatible settings. System of Record: SAP S/4HANA standard APIs, master data, and posting integrity controls. Integration contracts are protocol-labeled and observable: Webhook/AS2 intake, gRPC-style internal coordination, and OData/BAPI posting calls to ERP. Operational control points include schema checks, idempotency, payload validation, and exception queues. **Clean Core enforcement is explicit: all custom logic is isolated in the Side-Car layer and never embedded in the ERP kernel.** This separation protects upgradeability and reduces regression risk during SAP releases while still enabling high-adaptivity automation on top.\n\n## Integration Design Deep Dive\n\nThe integration design follows a staged processing contract. Stage 1 handles omnichannel intake normalization to convert emails, EDI payloads, and partner messages into a canonical order event. Stage 2 performs classification and pathing: deterministic validations are executed through Path B services, while ambiguous or context-rich tasks are routed to Path C reasoning nodes. Stage 3 executes approved ERP interactions via standard API endpoints and performs post-transaction status callbacks to the side-car. Failure modes are handled in-band: malformed payloads trigger formatter retries, confidence failures trigger refinement loops, and prolonged uncertainty triggers human escalation. This design ensures that failure in one adapter or service does not corrupt core posting behavior.\n\n## Agent Persona Reasoning Model\n\nAgent personas are intentionally constrained by reasoning boundaries. The Intake Scribe is optimized for perception and structured extraction; it should not execute financial decisions. The Intent Analyzer is optimized for context classification and action routing; it determines whether a case is suitable for Path A, B, or C and records rationale for auditability. The Dispute Judge is optimized for evidence-based reasoning in exception scenarios and must return both decision and evidence chain. Together these personas create a transparent cognitive assembly line where each decision is attributable, reviewable, and reversible. This design lowers black-box risk and supports phased trust adoption.\n\n## The Trust Gap Protocol\n\nCurrent operating mode defaults to **Shadow**. In Shadow, agents produce recommendations while humans keep execution authority and annotate decision quality gaps. In Co-Pilot, high-confidence low-risk steps can execute with explicit override and sampling audits. In Autopilot, approved lanes execute touchlessly with continuous telemetry, rollback hooks, and policy drift detection. The confidence threshold is strictly greater than 95%; anything at or below threshold is routed back to refinement. If loop limits are reached, the process hard-stops into human escalation rather than silently degrading quality.\n\n## Path Design Decisions\n\nThe following table classifies each friction point into exactly one path using the mandatory Phase 2 suitability assessment. Path C is assigned only when perception, reasoning, or adaptive action is required.\n\n| Friction_ID | Recommended_Path | Suitability_Justification | Core_vs_SideCar_Orientation | Human_Supervision_Needed | Confidence | Evidence | Open_Questions |\n|---|---|---|---|---|---|---|---|\n| F-001 | C | Requires perception over unstructured payloads and adaptive extraction checks. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | DOC1 order_intake_notes.txt: \"take / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads... |  |\n| F-002 | B | Change flows are repeatable and should be orchestrated via deterministic side-car workflows. Classified via mandatory Phase 2 suitability assessment. | Side-Car | No | High | DOC1 order_intake_notes.txt: \"o SAP. - Spreadsheet uploads from distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel pa... |  |\n| F-003 | C | Requires adaptive action across mobile channel payload variability. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | DOC1 order_intake_notes.txt: \"distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization befor... |  |\n| F-004 | C | Requires contextual reasoning over policy, order, and logistics evidence. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | DOC1 order_intake_notes.txt: \"uguay Power Street channel payload requires normalization before posting. - Deduction and dispute processing is slow and manual. Regional nuances:... |  |\n| F-005 | C | Requires perception over unstructured documents and adaptive extraction checks. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | Pain point inventory |  |\n| F-006 | B | Best handled via workflow orchestration and rule-driven automation. Classified via mandatory Phase 2 suitability assessment. | Side-Car | No | High | Pain point inventory |  |\n\n## Regional Policy Registry\n\nThe policy registry below captures normalized regional signals used to drive runtime behavior in the orchestration layer.\n\n```json\n{\n  \"india_dc_based_entry\": true,\n  \"china_digital_hub\": false,\n  \"anz_va01_exception_enabled\": true,\n  \"uruguay_power_street_enabled\": true\n}\n```\n\n## Delivery and Rollout Plan\n\nWave 1 establishes mandatory synthesis and confidence gating with human approval checkpoints. Wave 2 expands deterministic automations and adapter hardening for region-specific channels. Wave 3 scales approved agentic lanes with deeper telemetry, cost controls, and governance scorecards. KPI packs include touchless rate, manual touch reduction, exception turnaround, posting accuracy, and confidence distribution by task type. Exit criteria for each wave include audit evidence, rollback readiness, and trend stability over multiple business cycles. Governance and rollback procedures are defined per wave with clear ownership and sign-off. Operational readiness is confirmed through staging validation and pilot runs before production cutover. Staged rollout allows measured risk reduction and quick wins in high-impact channels before broader deployment. Change management and training are aligned with each wave to ensure adoption and continuity. Event payload contracts are versioned and backward-compatible; policy decisions are traceable to explicit evidence chains; side-car services are horizontally scalable. Rollout governance uses measurable confidence and exception KPIs to prevent quality drift.\n\nFurther technical detail: event payload contracts are versioned and backward-compatible, policy decisions are traceable to explicit evidence chains, side-car services are horizontally scalable, and rollout governance uses measurable confidence and exception KPIs to prevent quality drift.\n\nStaged rollout allows measured risk reduction and quick wins in high-impact channels before broader deployment. Change management and training are aligned with each wave to ensure adoption and continuity.\n\nQuality gates at each wave prevent regression: automated tests, contract checks, and confidence thresholds must pass before promoting to the next environment. Stakeholder sign-off is required at wave boundaries.\n\nRunbooks and playbooks document standard operations, incident response, and escalation paths. Monitoring and alerting are configured per wave with clear ownership and response SLAs.\n\nPost-go-live support includes hypercare windows, knowledge transfer, and continuous improvement cycles to refine automation based on real-world usage and feedback.\n\nSecurity and compliance checks are embedded in the pipeline: access control, audit logging, and data handling follow agreed standards before any wave is signed off.\n\nPerformance baselines are established in Wave 1 and monitored through Waves 2 and 3; deviations trigger review before further scale-out.\n\nCommunication plans cover each wave: stakeholder updates, training schedules, and go-live notifications are aligned with the rollout calendar.\n\nDocumentation includes architecture decisions, configuration guides, and runbooks; all are kept in sync with deployed releases.\n\nLessons learned from each wave are captured and fed into the next; retrospectives are mandatory at wave boundaries.\n\nCapacity planning is reviewed before each wave to ensure infrastructure and licenses support the intended scope.\n\nVendor and partner dependencies are identified early; contracts and support levels are confirmed prior to wave start.\n\nRisk registers are maintained per wave with mitigation and contingency; executive steering reviews them monthly.\n\nTesting strategy covers unit, integration, and end-to-end scenarios; regression suites are automated and run per wave.\n\n## Appendix: Control and Operability Baseline\n\nCore operability controls include schema validation, deterministic retries, idempotency keys, payload lineage, and cross-system correlation IDs. Governance controls include policy versioning, role-based approval, and exception triage SLAs. Reliability controls include dead-letter routing, retry budget limits, and monitored degradation paths. These controls make the automation stack production-safe while maintaining separation of concerns between side-car intelligence and ERP record integrity.\n\n## Executive Simplified Summary\n\nThis design gives McCain one intelligent intake layer that reduces manual work and speeds order processing across regions. By keeping custom logic in the Side-Car and using only standard ERP APIs, the solution protects SAP stability and lowers upgrade risk. The trust-gated rollout lets the business scale automation safely while improving accuracy, cycle time, and service quality.",
+    "mermaid_xml": "<VisualArchitecture version=\"2.0\">\n  <Region>ANZ</Region>\n  <DiagramType>Tiered_Agentic_SideCar</DiagramType>\n  <EvidenceReferences>\n    <Reference id=\"DOC1\" source=\"order_intake_notes.txt\" path=\"C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt\">Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center channels in India. -...</Reference>\n  </EvidenceReferences>\n  <MermaidData><![CDATA[\ngraph TD\n  %% Zone A: External_Intake\n  subgraph External_Intake [\"Customer Channels\"]\n    CH_EMAIL([Email/PDF]):::external\n    CH_CHAT([WhatsApp/Chat]):::external\n    CH_EDI([EDI/Portal]):::external\n  end\n\n  %% Zone B: Agentic_SideCar\n  subgraph Agentic_SideCar [\"Intelligent Automation\"]\n    AG_SCRIBE{{Doc Extractor}}:::agent\n    AG_INTENT{{Intent Analyzer}}:::agent\n    AG_DISPUTE{{Dispute Resolver}}:::agent\n    WF_ROUTER([Order Router]):::workflow\n    WF_VALIDATOR([Validator]):::workflow\n    WF_FORMAT([Format Engine]):::workflow\n    DB_POLICY[(Policy Rules)]:::persistence\n  end\n\n  %% Zone C: Clean_Core_ERP\n  subgraph Clean_Core_ERP [\"Core System\"]\n    ERP_VA01[Create Order]:::core\n    ERP_MD[Validation]:::core\n    ERP_POST[Post Order]:::core\n    DB_S4[(Master Data)]:::persistence\n  end\n\n  %% Evidence References derived from uploaded documents\n  %% DOC1 order_intake_notes.txt: Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: -...\n\n  %% Intake routing with regional logic\n  CH_EMAIL -->|Webhook| WF_ROUTER\n  CH_CHAT -->|Webhook| WF_ROUTER\n  CH_EDI -->|EDI| WF_ROUTER\n\n  %% Side-Car orchestration flow\n  WF_ROUTER -.->|Normalize Payload| AG_SCRIBE\n  AG_SCRIBE -->|Structured Data| AG_INTENT\n  AG_INTENT -.->|Apply Rules| DB_POLICY\n  AG_INTENT -->|Validate| WF_VALIDATOR\n  WF_VALIDATOR -->|Format| WF_FORMAT\n  AG_INTENT -->|Exception to Resolve| AG_DISPUTE\n  AG_DISPUTE -.->|Resolve Case| ERP_VA01\n\n  %% Clean Core standard processing\n  WF_FORMAT -.->|Post to System| ERP_VA01\n  ERP_VA01 -->|Update| ERP_MD\n  ERP_MD -.->|Check Data| DB_S4\n  ERP_MD ==>|Post to System| ERP_POST\n  ERP_POST -->|Notify Status| WF_ROUTER\n\n  %% Visual classes\n  classDef external fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1px;\n  classDef agent fill:#FFF3CD,stroke:#B8860B,color:#5D4037,stroke-width:2px;\n  classDef workflow fill:#F5F5F5,stroke:#616161,color:#263238,stroke-width:1px;\n  classDef core fill:#ECEFF1,stroke:#455A64,color:#263238,stroke-width:1.5px;\n  classDef persistence fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20,stroke-width:1.5px;\n  ]]></MermaidData>\n</VisualArchitecture>"
+  },
+  "process_name": "Order Intake",
+  "context_region": "ANZ",
+  "pain_points": [
+    "Manual email/PDF order entry",
+    "Frequent order modifications",
+    "Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1)",
+    "Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1)",
+    "Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1)",
+    "Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1)"
+  ],
+  "regional_nuances": {
+    "india_dc_based_entry": true,
+    "china_digital_hub": false,
+    "anz_va01_exception_enabled": true,
+    "uruguay_power_street_enabled": true
+  },
+  "evidence_references": [
+    {
+      "id": "DOC1",
+      "source": "order_intake_notes.txt",
+      "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+      "excerpt": "Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center channels in India. -..."
+    }
+  ],
+  "canonical_documents": [
+    {
+      "source_id": "DOC1",
+      "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+      "mime_type": "text/plain",
+      "pages": [
+        {
+          "source_id": "DOC1",
+          "page_number": 1,
+          "page_type": "text",
+          "text_content": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.\n\n",
+          "extraction_method": "text_layer",
+          "confidence": 0.68,
+          "nodes": [],
+          "edges": [],
+          "lanes": [],
+          "warnings": []
+        }
+      ],
+      "graph": {
+        "graph_id": "DOC1-graph",
+        "nodes": [],
+        "edges": [],
+        "lanes": [],
+        "extraction_confidence": 0.0,
+        "unresolved_edges": 0,
+        "warnings": []
+      },
+      "extraction_confidence": 0.0,
+      "warnings": []
+    }
+  ],
+  "process_graphs": [
+    {
+      "graph_id": "DOC1-graph",
+      "nodes": [],
+      "edges": [],
+      "lanes": [],
+      "extraction_confidence": 0.0,
+      "unresolved_edges": 0,
+      "warnings": []
+    }
+  ],
+  "phase_status": {
+    "phase_1_current_reality_synthesis": "completed",
+    "phase_2_agentic_reasoning": "completed",
+    "phase_3_blueprint_generation": "completed",
+    "quality_control": "pass"
+  },
+  "confidence_score": 0.9633,
+  "trust_gap_phase": "Shadow",
+  "quality_feedback": [
+    "Confidence 94.33% below threshold 95.00%. Additional refinement required.",
+    "Quality Control loop triggered: confidence below 95%, returning to Input Refiner before blueprint generation.",
+    "Refinement pass 1: strengthened evidence mapping and clarified Path A/B/C rationale to close Trust Gap."
+  ],
+  "refinement_iterations": 1,
+  "manual_approval": true,
+  "strategy_report_markdown": "# Re-Imagined Strategy Report: Order Intake\n\n**Contents**\n- Executive Summary\n- Cognitive Friction Analysis\n- Source Evidence Register\n- Architecture of the Future State\n- Technical Stack\n- Integration Design Deep Dive\n- Agent Persona Reasoning Model\n- The Trust Gap Protocol\n- Path Design Decisions\n- Regional Policy Registry\n- Delivery and Rollout Plan\n- Appendix: Control and Operability Baseline\n- Executive Simplified Summary\n\n## Executive Summary\n\nThe One Big Move for Order Intake in ANZ is to replace human middleware with a Side-Car intelligence and orchestration layer that protects the SAP core while accelerating order-cycle execution. This architecture treats every intake channel as an event source, every exception as a managed decision point, and every ERP transaction as a standards-based API call rather than a custom-coded branch. The strategic benefit is immediate: higher touchless throughput, lower transcription defects, faster exception closure, and lower operational risk across regional variations. The design also keeps long-term cost under control by avoiding core-kernel customization and by consolidating complex logic into reusable side-car services. The methodology is intentionally strict: Phase 1 captures current reality and cognitive friction, Phase 2 maps each friction to Path A/B/C with explicit suitability logic, and Phase 3 produces a deployable blueprint backed by trust controls. The operating model is therefore transformation-ready and audit-ready from day one.\n\n## Cognitive Friction Analysis\n\n| Friction_ID | Current_Manual_Action | Where_in_Process | Trigger_or_Input_Channel | Region_Impacted | Systems_or_Tools_Mentioned | Why_It's_Friction | Evidence | Open_Questions |\n|---|---|---|---|---|---|---|---|---|\n| F-001 | Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1) | Order Intake / Data Entry | Email, PDF, Fax, Spreadsheet | ANZ | SAP | Delay from manual re-keying; high transcription error rate; rework when data is misinterpreted. | DOC1 order_intake_notes.txt: \"take / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads... |  |\n| F-002 | Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1) | Order Amendment | Not specified | ANZ | SAP (VA02, VA03) | Manual SAP transaction processing delays order amendment cycle; error-prone repetitive steps. | DOC1 order_intake_notes.txt: \"o SAP. - Spreadsheet uploads from distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel pa... |  |\n| F-003 | Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1) | Truck-Loading Order Capture | Power Street mobile channel | ANZ | ERP, Power Street | Mobile payload variability causes format errors; same-day order capture delayed. | DOC1 order_intake_notes.txt: \"distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization befor... |  |\n| F-004 | Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1) | Dispute / Deduction Triage | Not specified | ANZ | Not specified | Manual cross-system evidence reconciliation; extended dispute cycle time; compliance risk. | DOC1 order_intake_notes.txt: \"uguay Power Street channel payload requires normalization before posting. - Deduction and dispute processing is slow and manual. Regional nuances:... |  |\n| F-005 | Manual email/PDF order entry | Order Intake / Data Entry | Email, PDF, Spreadsheet | ANZ | Not specified | Delay from manual re-keying; high transcription error rate. | Pain point inventory |  |\n| F-006 | Frequent order modifications | Not specified | Not specified | ANZ | Not specified | Manual repetitive task creating delay in process execution. | Pain point inventory |  |\n\n## Source Evidence Register\n\nThe following references were derived from uploaded source artifacts and used to ground the friction and flow decisions in this report.\n\n| Reference ID | Source Artifact | Evidence Excerpt |\n|---|---|---|\n| DOC1 | order_intake_notes.txt | Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from... |\n\n## Architecture of the Future State\n\nThe future state is a hub-and-spoke operating model where the Agentic Side-Car is the controlled brain between channels and SAP. Personas are explicit: **The Intake Scribe** extracts and normalizes incoming order payloads; **The Intent Analyzer** classifies business intent and routes deterministic vs agentic work; **The Dispute Judge** handles contextual exceptions requiring evidence reasoning. Path C tasks stay in this layer and are executed with confidence scoring, policy checks, and human escalation hooks. Path B tasks are delivered as deterministic workflow components such as routing, formatting, and validation engines. Path A tasks are pushed back to standard ERP APIs and data checks. Regional variations are managed through policy injection and adapter patterns in the side-car, not through core transaction branching. This architecture lets McCain scale automation without coupling business variability to ERP internals.\n\n## Technical Stack\n\nSystem of Intelligence: LangGraph orchestration, policy guardrails, confidence routing, and optional LLM services configured through Azure/OpenAI-compatible settings. System of Record: SAP S/4HANA standard APIs, master data, and posting integrity controls. Integration contracts are protocol-labeled and observable: Webhook/AS2 intake, gRPC-style internal coordination, and OData/BAPI posting calls to ERP. Operational control points include schema checks, idempotency, payload validation, and exception queues. **Clean Core enforcement is explicit: all custom logic is isolated in the Side-Car layer and never embedded in the ERP kernel.** This separation protects upgradeability and reduces regression risk during SAP releases while still enabling high-adaptivity automation on top.\n\n## Integration Design Deep Dive\n\nThe integration design follows a staged processing contract. Stage 1 handles omnichannel intake normalization to convert emails, EDI payloads, and partner messages into a canonical order event. Stage 2 performs classification and pathing: deterministic validations are executed through Path B services, while ambiguous or context-rich tasks are routed to Path C reasoning nodes. Stage 3 executes approved ERP interactions via standard API endpoints and performs post-transaction status callbacks to the side-car. Failure modes are handled in-band: malformed payloads trigger formatter retries, confidence failures trigger refinement loops, and prolonged uncertainty triggers human escalation. This design ensures that failure in one adapter or service does not corrupt core posting behavior.\n\n## Agent Persona Reasoning Model\n\nAgent personas are intentionally constrained by reasoning boundaries. The Intake Scribe is optimized for perception and structured extraction; it should not execute financial decisions. The Intent Analyzer is optimized for context classification and action routing; it determines whether a case is suitable for Path A, B, or C and records rationale for auditability. The Dispute Judge is optimized for evidence-based reasoning in exception scenarios and must return both decision and evidence chain. Together these personas create a transparent cognitive assembly line where each decision is attributable, reviewable, and reversible. This design lowers black-box risk and supports phased trust adoption.\n\n## The Trust Gap Protocol\n\nCurrent operating mode defaults to **Shadow**. In Shadow, agents produce recommendations while humans keep execution authority and annotate decision quality gaps. In Co-Pilot, high-confidence low-risk steps can execute with explicit override and sampling audits. In Autopilot, approved lanes execute touchlessly with continuous telemetry, rollback hooks, and policy drift detection. The confidence threshold is strictly greater than 95%; anything at or below threshold is routed back to refinement. If loop limits are reached, the process hard-stops into human escalation rather than silently degrading quality.\n\n## Path Design Decisions\n\nThe following table classifies each friction point into exactly one path using the mandatory Phase 2 suitability assessment. Path C is assigned only when perception, reasoning, or adaptive action is required.\n\n| Friction_ID | Recommended_Path | Suitability_Justification | Core_vs_SideCar_Orientation | Human_Supervision_Needed | Confidence | Evidence | Open_Questions |\n|---|---|---|---|---|---|---|---|\n| F-001 | C | Requires perception over unstructured payloads and adaptive extraction checks. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | DOC1 order_intake_notes.txt: \"take / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads... |  |\n| F-002 | B | Change flows are repeatable and should be orchestrated via deterministic side-car workflows. Classified via mandatory Phase 2 suitability assessment. | Side-Car | No | High | DOC1 order_intake_notes.txt: \"o SAP. - Spreadsheet uploads from distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel pa... |  |\n| F-003 | C | Requires adaptive action across mobile channel payload variability. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | DOC1 order_intake_notes.txt: \"distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization befor... |  |\n| F-004 | C | Requires contextual reasoning over policy, order, and logistics evidence. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | DOC1 order_intake_notes.txt: \"uguay Power Street channel payload requires normalization before posting. - Deduction and dispute processing is slow and manual. Regional nuances:... |  |\n| F-005 | C | Requires perception over unstructured documents and adaptive extraction checks. Classified via mandatory Phase 2 suitability assessment. | Side-Car | Conditional | High | Pain point inventory |  |\n| F-006 | B | Best handled via workflow orchestration and rule-driven automation. Classified via mandatory Phase 2 suitability assessment. | Side-Car | No | High | Pain point inventory |  |\n\n## Regional Policy Registry\n\nThe policy registry below captures normalized regional signals used to drive runtime behavior in the orchestration layer.\n\n```json\n{\n  \"india_dc_based_entry\": true,\n  \"china_digital_hub\": false,\n  \"anz_va01_exception_enabled\": true,\n  \"uruguay_power_street_enabled\": true\n}\n```\n\n## Delivery and Rollout Plan\n\nWave 1 establishes mandatory synthesis and confidence gating with human approval checkpoints. Wave 2 expands deterministic automations and adapter hardening for region-specific channels. Wave 3 scales approved agentic lanes with deeper telemetry, cost controls, and governance scorecards. KPI packs include touchless rate, manual touch reduction, exception turnaround, posting accuracy, and confidence distribution by task type. Exit criteria for each wave include audit evidence, rollback readiness, and trend stability over multiple business cycles. Governance and rollback procedures are defined per wave with clear ownership and sign-off. Operational readiness is confirmed through staging validation and pilot runs before production cutover. Staged rollout allows measured risk reduction and quick wins in high-impact channels before broader deployment. Change management and training are aligned with each wave to ensure adoption and continuity. Event payload contracts are versioned and backward-compatible; policy decisions are traceable to explicit evidence chains; side-car services are horizontally scalable. Rollout governance uses measurable confidence and exception KPIs to prevent quality drift.\n\nFurther technical detail: event payload contracts are versioned and backward-compatible, policy decisions are traceable to explicit evidence chains, side-car services are horizontally scalable, and rollout governance uses measurable confidence and exception KPIs to prevent quality drift.\n\nStaged rollout allows measured risk reduction and quick wins in high-impact channels before broader deployment. Change management and training are aligned with each wave to ensure adoption and continuity.\n\nQuality gates at each wave prevent regression: automated tests, contract checks, and confidence thresholds must pass before promoting to the next environment. Stakeholder sign-off is required at wave boundaries.\n\nRunbooks and playbooks document standard operations, incident response, and escalation paths. Monitoring and alerting are configured per wave with clear ownership and response SLAs.\n\nPost-go-live support includes hypercare windows, knowledge transfer, and continuous improvement cycles to refine automation based on real-world usage and feedback.\n\nSecurity and compliance checks are embedded in the pipeline: access control, audit logging, and data handling follow agreed standards before any wave is signed off.\n\nPerformance baselines are established in Wave 1 and monitored through Waves 2 and 3; deviations trigger review before further scale-out.\n\nCommunication plans cover each wave: stakeholder updates, training schedules, and go-live notifications are aligned with the rollout calendar.\n\nDocumentation includes architecture decisions, configuration guides, and runbooks; all are kept in sync with deployed releases.\n\nLessons learned from each wave are captured and fed into the next; retrospectives are mandatory at wave boundaries.\n\nCapacity planning is reviewed before each wave to ensure infrastructure and licenses support the intended scope.\n\nVendor and partner dependencies are identified early; contracts and support levels are confirmed prior to wave start.\n\nRisk registers are maintained per wave with mitigation and contingency; executive steering reviews them monthly.\n\nTesting strategy covers unit, integration, and end-to-end scenarios; regression suites are automated and run per wave.\n\n## Appendix: Control and Operability Baseline\n\nCore operability controls include schema validation, deterministic retries, idempotency keys, payload lineage, and cross-system correlation IDs. Governance controls include policy versioning, role-based approval, and exception triage SLAs. Reliability controls include dead-letter routing, retry budget limits, and monitored degradation paths. These controls make the automation stack production-safe while maintaining separation of concerns between side-car intelligence and ERP record integrity.\n\n## Executive Simplified Summary\n\nThis design gives McCain one intelligent intake layer that reduces manual work and speeds order processing across regions. By keeping custom logic in the Side-Car and using only standard ERP APIs, the solution protects SAP stability and lowers upgrade risk. The trust-gated rollout lets the business scale automation safely while improving accuracy, cycle time, and service quality.",
+  "mermaid_xml": "<VisualArchitecture version=\"2.0\">\n  <Region>ANZ</Region>\n  <DiagramType>Tiered_Agentic_SideCar</DiagramType>\n  <EvidenceReferences>\n    <Reference id=\"DOC1\" source=\"order_intake_notes.txt\" path=\"C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt\">Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center channels in India. -...</Reference>\n  </EvidenceReferences>\n  <MermaidData><![CDATA[\ngraph TD\n  %% Zone A: External_Intake\n  subgraph External_Intake [\"Customer Channels\"]\n    CH_EMAIL([Email/PDF]):::external\n    CH_CHAT([WhatsApp/Chat]):::external\n    CH_EDI([EDI/Portal]):::external\n  end\n\n  %% Zone B: Agentic_SideCar\n  subgraph Agentic_SideCar [\"Intelligent Automation\"]\n    AG_SCRIBE{{Doc Extractor}}:::agent\n    AG_INTENT{{Intent Analyzer}}:::agent\n    AG_DISPUTE{{Dispute Resolver}}:::agent\n    WF_ROUTER([Order Router]):::workflow\n    WF_VALIDATOR([Validator]):::workflow\n    WF_FORMAT([Format Engine]):::workflow\n    DB_POLICY[(Policy Rules)]:::persistence\n  end\n\n  %% Zone C: Clean_Core_ERP\n  subgraph Clean_Core_ERP [\"Core System\"]\n    ERP_VA01[Create Order]:::core\n    ERP_MD[Validation]:::core\n    ERP_POST[Post Order]:::core\n    DB_S4[(Master Data)]:::persistence\n  end\n\n  %% Evidence References derived from uploaded documents\n  %% DOC1 order_intake_notes.txt: Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: -...\n\n  %% Intake routing with regional logic\n  CH_EMAIL -->|Webhook| WF_ROUTER\n  CH_CHAT -->|Webhook| WF_ROUTER\n  CH_EDI -->|EDI| WF_ROUTER\n\n  %% Side-Car orchestration flow\n  WF_ROUTER -.->|Normalize Payload| AG_SCRIBE\n  AG_SCRIBE -->|Structured Data| AG_INTENT\n  AG_INTENT -.->|Apply Rules| DB_POLICY\n  AG_INTENT -->|Validate| WF_VALIDATOR\n  WF_VALIDATOR -->|Format| WF_FORMAT\n  AG_INTENT -->|Exception to Resolve| AG_DISPUTE\n  AG_DISPUTE -.->|Resolve Case| ERP_VA01\n\n  %% Clean Core standard processing\n  WF_FORMAT -.->|Post to System| ERP_VA01\n  ERP_VA01 -->|Update| ERP_MD\n  ERP_MD -.->|Check Data| DB_S4\n  ERP_MD ==>|Post to System| ERP_POST\n  ERP_POST -->|Notify Status| WF_ROUTER\n\n  %% Visual classes\n  classDef external fill:#E3F2FD,stroke:#1E88E5,color:#0D47A1,stroke-width:1px;\n  classDef agent fill:#FFF3CD,stroke:#B8860B,color:#5D4037,stroke-width:2px;\n  classDef workflow fill:#F5F5F5,stroke:#616161,color:#263238,stroke-width:1px;\n  classDef core fill:#ECEFF1,stroke:#455A64,color:#263238,stroke-width:1.5px;\n  classDef persistence fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20,stroke-width:1.5px;\n  ]]></MermaidData>\n</VisualArchitecture>",
+  "errors": [
+    "Image render disabled via RENDER_BLUEPRINT_IMAGE."
+  ],
+  "quality_gate_result": "blueprint",
+  "path_classifier_prompt": "TASK: Path Classification (A/B/C) for Friction Points (Table Output Only)\n\nRole: Principal Enterprise AI Architect and Business Transformation Strategist.\nMode: High reasoning.\n\nGoal\nClassify each friction point into exactly one of three paths:\n- Path A (Core Standardization): revert/force to standard ERP/CRM functionality.\n- Path B (Platform Automation): deterministic automation (workflows/RPA).\n- Path C (Agentic AI Deployment): probabilistic reasoning (GenAI agents).\n\nInputs\nYou will receive:\n1) A \"Cognitive Friction Analysis\" table of friction points\n2) The same source documents (for evidence cross-check)\n\nSuitability Rule (STRICT \u2014 must be explicit in justification)\nAssign Path C ONLY if the task requires at least one:\n- Perception (reading/extracting unstructured inputs like emails/PDF/free text)\n- Reasoning (trade-off analysis, multi-step judgment)\n- Adaptive Action (dynamic exception handling/planning)\nIf not, prefer Path B or Path A.\n\nOutput (STRICT)\nProduce ONLY a JSON array titled \"path_classifications\".\nEach element must have these keys:\n- friction_id\n- recommended_path (A / B / C)\n- suitability_justification (1\u20132 lines; MUST reference rule-based vs perception/reasoning/adaptive action)\n- core_vs_sidecar_orientation (Core / Side-Car / Hybrid)\n- human_supervision_needed (Yes / No / Conditional)\n- confidence (High / Medium / Low)\n- evidence (Document + page/section supporting classification)\n- open_questions (if classification depends on missing info, else empty string)\n\nRules\n- Map 1:1 to the Friction_IDs from the friction table.\n- Use evidence from the provided documents.\n- Do not invent technologies or tools not stated in the documents.\n- Keep \"Core vs Side-Car\" conceptual (no vendor/tool names unless stated).\n\nBegin\nClassify all friction points and output the JSON array only.\n\n=== COGNITIVE FRICTION TABLE ===\n| Friction_ID | Current_Manual_Action | Where_in_Process | Trigger_or_Input_Channel | Region_Impacted | Systems_or_Tools_Mentioned | Why_It's_Friction | Evidence | Open_Questions |\n|---|---|---|---|---|---|---|---|---|\n| F-001 | Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP. (Refs: DOC1) | Order Intake / Data Entry | Email, PDF, Fax, Spreadsheet | ANZ | SAP | Delay from manual re-keying; high transcription error rate; rework when data is misinterpreted. | DOC1 order_intake_notes.txt: \"take / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center chann...\" |  |\n| F-002 | Order changes are processed manually in SAP (VA02/VA03) after initial intake. (Refs: DOC1) | Order Amendment | Not specified | ANZ | SAP (VA02, VA03) | Manual SAP transaction processing delays order amendment cycle; error-prone repetitive steps. | DOC1 order_intake_notes.txt: \"o SAP. - Spreadsheet uploads from distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization b...\" |  |\n| F-003 | Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting. (Refs: DOC1) | Truck-Loading Order Capture | Power Street mobile channel | ANZ | ERP, Power Street | Mobile payload variability causes format errors; same-day order capture delayed. | DOC1 order_intake_notes.txt: \"distribution center channels in India. - Frequent order change requests in ANZ. - Uruguay Power Street channel payload requires normalization before posting. - Deduction and dis...\" |  |\n| F-004 | Deduction and dispute triage requires manual evidence reconciliation across systems. (Refs: DOC1) | Dispute / Deduction Triage | Not specified | ANZ | Not specified | Manual cross-system evidence reconciliation; extended dispute cycle time; compliance risk. | DOC1 order_intake_notes.txt: \"uguay Power Street channel payload requires normalization before posting. - Deduction and dispute processing is slow and manual. Regional nuances: - ANZ VA01 is a fallback excep...\" |  |\n| F-005 | Manual email/PDF order entry | Order Intake / Data Entry | Email, PDF, Spreadsheet | ANZ | Not specified | Delay from manual re-keying; high transcription error rate. | Pain point inventory |  |\n| F-006 | Frequent order modifications | Not specified | Not specified | ANZ | Not specified | Manual repetitive task creating delay in process execution. | Pain point inventory |  |\n\n=== SOURCE EVIDENCE REGISTER ===\n- [DOC1] order_intake_notes.txt: Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center channels in India. -...\n",
+  "render_artifact": {
+    "mmd_path": "C:\\Users\\lildivya\\AppData\\Local\\Temp\\1\\pytest-of-LILDIVYA\\pytest-33\\test_cli_run_then_resume0\\cli-test-thread\\process_blueprint.mmd",
+    "svg_path": "C:\\Users\\lildivya\\AppData\\Local\\Temp\\1\\pytest-of-LILDIVYA\\pytest-33\\test_cli_run_then_resume0\\cli-test-thread\\process_blueprint.svg",
+    "renderer": "",
+    "status": "skipped",
+    "warning": "Image render disabled via RENDER_BLUEPRINT_IMAGE."
+  }
+}

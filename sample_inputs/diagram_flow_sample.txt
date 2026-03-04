@@ -1,0 +1,9 @@
+Start
+Receive Customer Purchase Requests
+What is the Order Type ?
+Enter Standard Order Details into the ERP
+Enter Consignment Details into the ERP
+Order capturing Failure?
+Resolve non-EDI issues
+Send Order Acknowledgement
+End

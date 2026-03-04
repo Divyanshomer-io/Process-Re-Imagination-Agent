@@ -9,9 +9,41 @@ from xml.sax.saxutils import escape
 
 from process_reimagination_agent.config import Settings
 from process_reimagination_agent.ingestion import ingest_manifest
+from process_reimagination_agent.llm_client import call_llm
 from process_reimagination_agent.models import FrictionItem, InputManifest, PathDecision
+from process_reimagination_agent.process_graph import graph_motifs, graph_signals
+from process_reimagination_agent.observability import get_logger
+from process_reimagination_agent.prompts.blueprint import render_blueprint_prompt
+from process_reimagination_agent.prompts.friction_points import (
+    FRICTION_POINTS_REQUIRED_COLUMNS,
+    get_friction_points_prompt,
+)
+from process_reimagination_agent.prompts.input_refiner import render_input_refiner_prompt
+from process_reimagination_agent.prompts.path_classifier import render_path_classifier_prompt
 from process_reimagination_agent.regional_rules import apply_regional_overrides_to_decision, detect_regional_nuances
 from process_reimagination_agent.validators import count_words, validate_mermaid_xml, validate_strategy_report
+
+_logger = get_logger()
+
+_SYSTEM_MESSAGE_ANALYST = (
+    "You are a Principal Enterprise AI Architect and Business Transformation Strategist. "
+    "You analyze process documents with high reasoning precision. You produce structured, "
+    "evidence-grounded outputs that are auditable and actionable. You never hallucinate "
+    "details not present in the source documents. When information is missing, you "
+    "explicitly state 'Not specified' and flag it as an open question."
+)
+
+_SYSTEM_MESSAGE_BLUEPRINT = (
+    "You are a Principal Enterprise AI Architect generating a comprehensive strategy report. "
+    "You write authoritative, technical, and actionable transformation blueprints. Your output "
+    "must be well-structured Markdown with all required sections. You enforce Clean Core "
+    "principles: all custom logic stays in the Side-Car layer and is never embedded in the "
+    "ERP kernel. Every claim must be traceable to evidence from the source documents."
+)
+
+_MAX_DOCUMENT_CHARS = 24000
+_MAX_TOKENS_ANALYSIS = 4096
+_MAX_TOKENS_BLUEPRINT = 8192
 
 
 def _compact_text(text: str, max_len: int = 180) -> str:
@@ -95,6 +127,7 @@ def _derive_document_friction_items(
         return []
 
     # These rules translate unstructured process evidence into friction items with source references.
+    # Each rule populates the Cognitive Friction Analysis table columns.
     rules: list[dict[str, Any]] = [
         {
             "patterns": [
@@ -106,6 +139,10 @@ def _derive_document_friction_items(
                 r"\bfax\b",
             ],
             "current_manual_action": "Manual multi-channel order intake (email/PDF/fax/spreadsheet) is re-keyed into SAP.",
+            "where_in_process": "Order Intake / Data Entry",
+            "trigger_or_input_channel": "Email, PDF, Fax, Spreadsheet",
+            "systems_or_tools_mentioned": "SAP",
+            "why_its_friction": "Delay from manual re-keying; high transcription error rate; rework when data is misinterpreted.",
             "friction_type": "Human transcription and unstructured intake triage",
             "proposed_path": "C",
             "rationale": "Requires perception over unstructured payloads and adaptive extraction checks.",
@@ -125,6 +162,10 @@ def _derive_document_friction_items(
                 r"\bduplicate order\b",
             ],
             "current_manual_action": "Order capture failures require manual triage for EDI/data-quality exceptions.",
+            "where_in_process": "Order Capture / Exception Handling",
+            "trigger_or_input_channel": "EDI",
+            "systems_or_tools_mentioned": "SAP (IDoc processing)",
+            "why_its_friction": "Delay from manual triage of EDI failures; rework cycle for data-quality corrections.",
             "friction_type": "Deterministic coordination and status handling",
             "proposed_path": "B",
             "rationale": "Best handled by deterministic validation, routing, and retry workflows.",
@@ -142,6 +183,10 @@ def _derive_document_friction_items(
                 r"\bprocessed manually in sap\b",
             ],
             "current_manual_action": "Order changes are processed manually in SAP (VA02/VA03) after initial intake.",
+            "where_in_process": "Order Amendment",
+            "trigger_or_input_channel": "Not specified",
+            "systems_or_tools_mentioned": "SAP (VA02, VA03)",
+            "why_its_friction": "Manual SAP transaction processing delays order amendment cycle; error-prone repetitive steps.",
             "friction_type": "Deterministic coordination and status handling",
             "proposed_path": "B",
             "rationale": "Change flows are repeatable and should be orchestrated via deterministic side-car workflows.",
@@ -157,6 +202,10 @@ def _derive_document_friction_items(
                 r"\benter standard order details into the erp\b",
             ],
             "current_manual_action": "Order-type branching (standard vs consignment) is resolved manually during entry.",
+            "where_in_process": "Order Type Classification",
+            "trigger_or_input_channel": "Not specified",
+            "systems_or_tools_mentioned": "ERP",
+            "why_its_friction": "Inconsistent manual branching between order types creates variance and routing defects.",
             "friction_type": "ERP standardization opportunity for order-type branching",
             "proposed_path": "A",
             "rationale": "Should be standardized via core ERP rules and validated APIs.",
@@ -172,6 +221,10 @@ def _derive_document_friction_items(
                 r"\bno direct customer edi\b",
             ],
             "current_manual_action": "China intake must pass through Digital Hub before SAP posting.",
+            "where_in_process": "Order Intake Gateway",
+            "trigger_or_input_channel": "Digital Hub",
+            "systems_or_tools_mentioned": "SAP, Digital Hub",
+            "why_its_friction": "Mandatory gateway step adds latency; manual routing compliance enforcement.",
             "friction_type": "Deterministic coordination and status handling",
             "proposed_path": "B",
             "rationale": "Gateway enforcement is deterministic and should be governed in side-car routing policy.",
@@ -187,6 +240,10 @@ def _derive_document_friction_items(
                 r"\btruck\b",
             ],
             "current_manual_action": "Uruguay Power Street truck-loading orders require adaptive normalization before ERP posting.",
+            "where_in_process": "Truck-Loading Order Capture",
+            "trigger_or_input_channel": "Power Street mobile channel",
+            "systems_or_tools_mentioned": "ERP, Power Street",
+            "why_its_friction": "Mobile payload variability causes format errors; same-day order capture delayed.",
             "friction_type": "Channel-specific adaptive intake handling",
             "proposed_path": "C",
             "rationale": "Requires adaptive action across mobile channel payload variability.",
@@ -202,6 +259,10 @@ def _derive_document_friction_items(
                 r"\bconsignment model\b",
             ],
             "current_manual_action": "South Africa indirect orders need next-day Vector backward integration reconciliation.",
+            "where_in_process": "Indirect Order Reconciliation",
+            "trigger_or_input_channel": "Vector 3PL backward integration",
+            "systems_or_tools_mentioned": "Vector, SAP",
+            "why_its_friction": "Next-day reconciliation lag; manual handoff between boundary systems creates delays.",
             "friction_type": "Deterministic coordination and status handling",
             "proposed_path": "B",
             "rationale": "Boundary-system handoffs should be automated with deterministic integration checks.",
@@ -218,6 +279,10 @@ def _derive_document_friction_items(
                 r"\bshortage\b",
             ],
             "current_manual_action": "Deduction and dispute triage requires manual evidence reconciliation across systems.",
+            "where_in_process": "Dispute / Deduction Triage",
+            "trigger_or_input_channel": "Not specified",
+            "systems_or_tools_mentioned": "Not specified",
+            "why_its_friction": "Manual cross-system evidence reconciliation; extended dispute cycle time; compliance risk.",
             "friction_type": "Manual dispute triage and evidence reconciliation",
             "proposed_path": "C",
             "rationale": "Requires contextual reasoning over policy, order, and logistics evidence.",
@@ -248,6 +313,10 @@ def _derive_document_friction_items(
         derived.append(
             FrictionItem(
                 current_manual_action=current_manual_action,
+                where_in_process=str(rule.get("where_in_process", "Not specified")),
+                trigger_or_input_channel=str(rule.get("trigger_or_input_channel", "Not specified")),
+                systems_or_tools_mentioned=str(rule.get("systems_or_tools_mentioned", "Not specified")),
+                why_its_friction=str(rule.get("why_its_friction", "")),
                 friction_type=str(rule["friction_type"]),
                 proposed_path=rule["proposed_path"],  # type: ignore[arg-type]
                 rationale=str(rule["rationale"]),
@@ -256,6 +325,71 @@ def _derive_document_friction_items(
                 requires_reasoning=bool(rule["requires_reasoning"]),
                 requires_adaptive_action=bool(rule["requires_adaptive_action"]),
                 source_evidence=ref_evidence or f"Derived from uploaded process text in {context_region}.",
+            )
+        )
+    return derived
+
+
+def _derive_graph_friction_items(raw_inputs: dict[str, Any], context_region: str) -> list[FrictionItem]:
+    graphs = raw_inputs.get("process_graphs", [])
+    if not graphs:
+        return []
+    graph = graphs[0] if isinstance(graphs[0], dict) else {}
+    motifs = graph_motifs(graph)  # type: ignore[arg-type]
+    derived: list[FrictionItem] = []
+
+    if motifs.get("manual_touchpoints", 0) >= 2:
+        derived.append(
+            FrictionItem(
+                current_manual_action="Process graph shows repeated manual touchpoints across diagram branches.",
+                where_in_process="Multiple steps (graph-derived)",
+                trigger_or_input_channel="Not specified",
+                systems_or_tools_mentioned="Not specified",
+                why_its_friction="Repeated manual intervention nodes increase handling time and error rate.",
+                friction_type="Human transcription and unstructured intake triage",
+                proposed_path="C",
+                rationale="Graph topology indicates repeated manual intervention nodes across intake flow.",
+                expected_kpi_shift="40-65% reduction in manual handling effort",
+                requires_perception=True,
+                requires_reasoning=True,
+                requires_adaptive_action=False,
+                source_evidence=f"Graph-derived motifs from uploaded diagrams in {context_region}.",
+            )
+        )
+    if motifs.get("exception_branches", 0) >= 1:
+        derived.append(
+            FrictionItem(
+                current_manual_action="Diagram includes explicit failure/exception branches requiring routing and rework.",
+                where_in_process="Exception Handling (graph-derived)",
+                trigger_or_input_channel="Not specified",
+                systems_or_tools_mentioned="Not specified",
+                why_its_friction="Exception branches cause rework loops and delay downstream processing.",
+                friction_type="Deterministic coordination and status handling",
+                proposed_path="B",
+                rationale="Exception branches are structurally explicit and suited for deterministic orchestration.",
+                expected_kpi_shift="20-35% faster exception turnaround",
+                requires_perception=False,
+                requires_reasoning=False,
+                requires_adaptive_action=False,
+                source_evidence=f"Graph-derived exception motif count={motifs.get('exception_branches', 0)}.",
+            )
+        )
+    if motifs.get("gateway_count", 0) >= 1:
+        derived.append(
+            FrictionItem(
+                current_manual_action="Decision gateways exist in flow and rely on inconsistent branching execution.",
+                where_in_process="Decision Gateway (graph-derived)",
+                trigger_or_input_channel="Not specified",
+                systems_or_tools_mentioned="ERP",
+                why_its_friction="Inconsistent gateway branching causes variance and routing defects.",
+                friction_type="ERP standardization opportunity for order-type branching",
+                proposed_path="A",
+                rationale="Gateway-based branching can be standardized with rule-driven ERP/API behavior.",
+                expected_kpi_shift="Lower branch variance and fewer routing defects",
+                requires_perception=False,
+                requires_reasoning=False,
+                requires_adaptive_action=False,
+                source_evidence=f"Graph-derived gateway motif count={motifs.get('gateway_count', 0)}.",
             )
         )
     return derived
@@ -281,6 +415,10 @@ def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: s
             frictions.append(
                 FrictionItem(
                     current_manual_action=pain_point,
+                    where_in_process="Order Intake / Data Entry",
+                    trigger_or_input_channel="Email, PDF, Spreadsheet",
+                    systems_or_tools_mentioned="Not specified",
+                    why_its_friction="Delay from manual re-keying; high transcription error rate.",
                     friction_type="Human transcription and unstructured intake triage",
                     proposed_path="C",
                     rationale="Requires perception over unstructured documents and adaptive extraction checks.",
@@ -297,6 +435,10 @@ def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: s
             frictions.append(
                 FrictionItem(
                     current_manual_action=pain_point,
+                    where_in_process="Dispute / Deduction Triage",
+                    trigger_or_input_channel="Not specified",
+                    systems_or_tools_mentioned="Not specified",
+                    why_its_friction="Manual cross-system evidence reconciliation; extended dispute cycle time.",
                     friction_type="Manual dispute triage and evidence reconciliation",
                     proposed_path="C",
                     rationale="Requires reasoning across invoices, POD, and policy context.",
@@ -313,6 +455,10 @@ def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: s
             frictions.append(
                 FrictionItem(
                     current_manual_action=pain_point,
+                    where_in_process="ERP Configuration / Customization",
+                    trigger_or_input_channel="Not specified",
+                    systems_or_tools_mentioned="ERP",
+                    why_its_friction="Non-standard process deviations increase support overhead and technical debt.",
                     friction_type="ERP deviation from standard process template",
                     proposed_path="A",
                     rationale="Candidate for core standardization to reduce technical debt.",
@@ -328,6 +474,10 @@ def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: s
         frictions.append(
             FrictionItem(
                 current_manual_action=pain_point,
+                where_in_process="Not specified",
+                trigger_or_input_channel="Not specified",
+                systems_or_tools_mentioned="Not specified",
+                why_its_friction="Manual repetitive task creating delay in process execution.",
                 friction_type="Deterministic coordination and status handling",
                 proposed_path="B",
                 rationale="Best handled via workflow orchestration and rule-driven automation.",
@@ -346,6 +496,11 @@ def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: s
     return [
         FrictionItem(
             current_manual_action="Human receives mixed-format order requests and re-keys them into ERP.",
+            where_in_process="Order Intake / Data Entry",
+            trigger_or_input_channel="Mixed channels (email, portal, EDI)",
+            systems_or_tools_mentioned="ERP",
+            why_its_friction="Human acts as cognitive middleware bridging unstructured channels and core system; delay and errors.",
+            open_questions="Exact intake channels and volumes not specified in source documents.",
             friction_type="Cognitive middleware bridging across channels and core system",
             proposed_path="C",
             rationale="Requires unstructured perception and adaptive handling for partial information.",
@@ -394,8 +549,55 @@ def _decision_confidence(item: FrictionItem, iteration_count: int, evidence_pena
     return max(0.50, min(0.99, base))
 
 
+def _parse_llm_friction_table(raw_response: str, context_region: str) -> list[FrictionItem]:
+    """Parse an LLM markdown-table response into FrictionItem objects.
+
+    Expects a pipe-delimited markdown table with the 9-column Cognitive
+    Friction Analysis schema.  Returns an empty list on parse failure.
+    """
+    items: list[FrictionItem] = []
+    try:
+        lines = [ln.strip() for ln in raw_response.splitlines() if ln.strip().startswith("|")]
+        data_lines = [ln for ln in lines if not re.match(r"^\|[\s\-:|]+\|$", ln)]
+        if len(data_lines) < 2:
+            return []
+        for row in data_lines[1:]:
+            cells = [c.strip() for c in row.split("|")[1:-1]]
+            if len(cells) < 9:
+                continue
+            items.append(
+                FrictionItem(
+                    friction_id=cells[0] or "",
+                    current_manual_action=cells[1] or "Not specified",
+                    where_in_process=cells[2] or "Not specified",
+                    trigger_or_input_channel=cells[3] or "Not specified",
+                    region_impacted=cells[4] or context_region or "Global",
+                    systems_or_tools_mentioned=cells[5] or "Not specified",
+                    why_its_friction=cells[6] or "",
+                    open_questions=cells[8] if len(cells) > 8 else "",
+                    friction_type=cells[6] or "LLM-identified friction",
+                    proposed_path="C" if any(
+                        kw in (cells[6] or "").lower()
+                        for kw in ["perception", "reasoning", "unstructured", "contextual"]
+                    ) else "B",
+                    rationale=f"LLM-identified: {cells[6]}" if cells[6] else "LLM-identified friction point",
+                    expected_kpi_shift="To be assessed",
+                    requires_perception="unstructured" in (cells[1] + cells[6]).lower(),
+                    requires_reasoning="reason" in (cells[6]).lower() or "judgment" in (cells[6]).lower(),
+                    requires_adaptive_action="adaptive" in (cells[6]).lower() or "exception" in (cells[6]).lower(),
+                    source_evidence=cells[7] or "",
+                )
+            )
+    except Exception as exc:
+        _logger.warning("Failed to parse LLM friction table: %s", exc)
+    return items
+
+
 def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
+    friction_prompt = get_friction_points_prompt()
+
     raw_inputs = dict(state.get("raw_inputs", {}))
+    raw_inputs["friction_analysis_prompt"] = friction_prompt
     manifest_data = raw_inputs.get("manifest", {})
 
     manifest = InputManifest.model_validate(
@@ -408,24 +610,50 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
         }
     )
 
-    ingest_result = ingest_manifest(manifest)
+    ingest_result = ingest_manifest(manifest, settings=settings)
     combined_text = ingest_result.get("combined_text", "")
     raw_inputs.update(ingest_result)
     evidence_references = _collect_document_references(raw_inputs)
 
     regional_nuances = detect_regional_nuances(combined_text=combined_text, context_region=manifest.context_region)
+
+    # --- LLM-powered friction analysis (required) ---
+    llm_frictions: list[FrictionItem] = []
+    if combined_text.strip():
+        llm_prompt = friction_prompt + "\n\n=== DOCUMENT TEXT ===\n" + combined_text[:_MAX_DOCUMENT_CHARS]
+        llm_response = call_llm(
+            llm_prompt,
+            settings,
+            system_message=_SYSTEM_MESSAGE_ANALYST,
+            max_tokens=_MAX_TOKENS_ANALYSIS,
+        )
+        llm_frictions = _parse_llm_friction_table(llm_response, manifest.context_region)
+        if llm_frictions:
+            _logger.info("friction_points_node: LLM produced %d friction items", len(llm_frictions))
+        else:
+            _logger.warning("friction_points_node: LLM returned response but parsing failed, supplementing with deterministic")
+
+    # --- Deterministic supplements (graph-derived and pattern-based) ---
     derived_frictions = _derive_document_friction_items(
         raw_inputs=raw_inputs,
         combined_text=combined_text,
         context_region=manifest.context_region,
     )
-    explicit_frictions = _fallback_friction_from_pain_points(manifest.pain_points, combined_text) if manifest.pain_points else []
-    if manifest.pain_points:
-        frictions = _merge_friction_items(derived_frictions, explicit_frictions)
-    elif derived_frictions:
-        frictions = derived_frictions
+    graph_derived_frictions = _derive_graph_friction_items(raw_inputs, manifest.context_region)
+    deterministic_supplements = _merge_friction_items(graph_derived_frictions, derived_frictions)
+
+    # --- Merge: LLM items are primary, deterministic fills structural gaps ---
+    if llm_frictions:
+        frictions = _merge_friction_items(llm_frictions, deterministic_supplements)
+        _logger.info("friction_points_node: using LLM-driven analysis with deterministic supplement")
     else:
-        frictions = _fallback_friction_from_pain_points([], combined_text)
+        frictions = deterministic_supplements if deterministic_supplements else _fallback_friction_from_pain_points(manifest.pain_points, combined_text)
+        _logger.warning("friction_points_node: LLM friction parsing failed; using deterministic as safety net")
+
+    for idx, item in enumerate(frictions, start=1):
+        item.friction_id = f"F-{idx:03d}"
+        if item.region_impacted == "Global":
+            item.region_impacted = manifest.context_region or "Global"
 
     resolved_pain_points = list(manifest.pain_points)
     if not resolved_pain_points:
@@ -448,6 +676,8 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
 
     return {
         "raw_inputs": raw_inputs,
+        "canonical_documents": raw_inputs.get("canonical_documents", []),
+        "process_graphs": raw_inputs.get("process_graphs", []),
         "process_name": manifest.process_name,
         "context_region": manifest.context_region,
         "pain_points": resolved_pain_points,
@@ -457,6 +687,50 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
         "phase_status": phase_status,
         "errors": errors,
     }
+
+
+def _parse_llm_refined_items(raw_response: str, original_items: list[FrictionItem]) -> list[dict[str, Any]] | None:
+    """Parse an LLM JSON-array response of refined friction items.
+
+    Returns ``None`` on parse failure or if the count doesn't match.
+    """
+    try:
+        cleaned = raw_response.strip()
+        json_match = re.search(r"\[.*]", cleaned, re.DOTALL)
+        if not json_match:
+            return None
+        parsed: list[dict[str, Any]] = json.loads(json_match.group())
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    if not isinstance(parsed, list) or len(parsed) != len(original_items):
+        return None
+
+    original_lookup = {item.friction_id: item for item in original_items}
+    results: list[dict[str, Any]] = []
+    for entry in parsed:
+        fid = str(entry.get("friction_id", ""))
+        orig = original_lookup.get(fid)
+        if orig is None:
+            return None
+        base = orig.model_dump()
+        for key in (
+            "current_manual_action", "where_in_process", "trigger_or_input_channel",
+            "systems_or_tools_mentioned", "why_its_friction", "source_evidence",
+            "open_questions", "friction_type", "rationale", "expected_kpi_shift",
+        ):
+            if entry.get(key):
+                base[key] = str(entry[key])
+        if entry.get("proposed_path") in {"A", "B", "C"}:
+            base["proposed_path"] = entry["proposed_path"]
+        if isinstance(entry.get("requires_perception"), bool):
+            base["requires_perception"] = entry["requires_perception"]
+        if isinstance(entry.get("requires_reasoning"), bool):
+            base["requires_reasoning"] = entry["requires_reasoning"]
+        if isinstance(entry.get("requires_adaptive_action"), bool):
+            base["requires_adaptive_action"] = entry["requires_adaptive_action"]
+        results.append(base)
+    return results
 
 
 def Input_Refiner_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
@@ -469,15 +743,37 @@ def Input_Refiner_Node(state: dict[str, Any], settings: Settings) -> dict[str, A
         )
     )
 
-    refined_logs = []
-    for item in _friction_items_from_state(state):
-        payload = item.model_dump()
-        if not payload.get("source_evidence"):
-            payload["source_evidence"] = "Refined using quality feedback and source documents"
-        payload["rationale"] = (
-            f"{payload['rationale']} Refinement pass {iteration} validated against Clean Core and Side-Car policies."
+    friction_items = _friction_items_from_state(state)
+    friction_logs = state.get("cognitive_friction_logs", [])
+    evidence_refs = list(state.get("evidence_references", []))
+
+    # --- LLM-powered refinement (required) ---
+    rendered_prompt = render_input_refiner_prompt(friction_logs, feedback, evidence_refs)
+    llm_response = call_llm(
+        rendered_prompt,
+        settings,
+        system_message=_SYSTEM_MESSAGE_ANALYST,
+        max_tokens=_MAX_TOKENS_ANALYSIS,
+    )
+    llm_refined = _parse_llm_refined_items(llm_response, friction_items)
+    if llm_refined:
+        refined_logs = llm_refined
+        _logger.info("Input_Refiner_Node: LLM-refined friction items (pass %d)", iteration)
+    else:
+        _logger.warning(
+            "Input_Refiner_Node: LLM response received but parsing failed (pass %d), "
+            "applying structured refinement to preserve LLM intent",
+            iteration,
         )
-        refined_logs.append(payload)
+        refined_logs = []
+        for item in friction_items:
+            payload = item.model_dump()
+            if not payload.get("source_evidence"):
+                payload["source_evidence"] = "Refined using quality feedback and source documents"
+            payload["rationale"] = (
+                f"{payload['rationale']} Refinement pass {iteration} validated against Clean Core and Side-Car policies."
+            )
+            refined_logs.append(payload)
 
     phase_status = dict(state.get("phase_status", {}))
     phase_status["phase_1_current_reality_synthesis"] = "completed"
@@ -490,24 +786,128 @@ def Input_Refiner_Node(state: dict[str, Any], settings: Settings) -> dict[str, A
     }
 
 
+_CONFIDENCE_LABEL_TO_FLOAT: dict[str, float] = {
+    "high": 0.97,
+    "medium": 0.90,
+    "low": 0.75,
+}
+
+
+
+def _parse_llm_classifications(
+    raw_response: str,
+    friction_items: list[FrictionItem],
+) -> list[dict[str, Any]] | None:
+    """Extract structured path classifications from the LLM JSON response.
+
+    Returns ``None`` when parsing fails or the response is incomplete.
+    """
+    try:
+        cleaned = raw_response.strip()
+        json_match = re.search(r"\[.*]", cleaned, re.DOTALL)
+        if not json_match:
+            return None
+        classifications: list[dict[str, Any]] = json.loads(json_match.group())
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    if not isinstance(classifications, list) or len(classifications) != len(friction_items):
+        return None
+
+    friction_lookup = {item.friction_id: item for item in friction_items}
+    results: list[dict[str, Any]] = []
+    for entry in classifications:
+        fid = str(entry.get("friction_id", ""))
+        item = friction_lookup.get(fid)
+        if item is None:
+            return None
+        recommended = str(entry.get("recommended_path", "")).strip().upper()
+        if recommended not in {"A", "B", "C"}:
+            return None
+        results.append({
+            "friction_id": fid,
+            "recommended_path": recommended,
+            "suitability_justification": str(entry.get("suitability_justification", "")),
+            "core_vs_sidecar_orientation": str(entry.get("core_vs_sidecar_orientation", "")),
+            "human_supervision_needed": str(entry.get("human_supervision_needed", "")),
+            "confidence": str(entry.get("confidence", "Medium")),
+            "evidence": str(entry.get("evidence", "")),
+            "open_questions": str(entry.get("open_questions", "")),
+        })
+    return results
+
+
+def _apply_guardrail(path: str, item: FrictionItem) -> str:
+    """Enforce the strict suitability rule: Path C requires perception/reasoning/adaptive action."""
+    if path == "C" and not (item.requires_perception or item.requires_reasoning or item.requires_adaptive_action):
+        return "B"
+    return path
+
+
+def _has_hard_extraction_failures(errors: list[str]) -> bool:
+    """Return True only for genuine extraction failures, not tool-availability warnings."""
+    soft_warning_tokens = {"ocr rendering unavailable", "poppler", "tesseract", "pdf2image"}
+    for err in errors:
+        err_lower = err.lower()
+        if any(token in err_lower for token in soft_warning_tokens):
+            continue
+        if "not found" in err_lower or "extraction failed" in err_lower or "empty extraction" in err_lower:
+            return True
+    return False
+
+
 def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
     friction_items = _friction_items_from_state(state)
-    path_decisions: list[dict[str, Any]] = []
     iteration = int(state.get("refinement_iterations", 0))
     region = state.get("context_region", "Global")
+    evidence_penalty = _has_hard_extraction_failures(list(state.get("errors", [])))
 
-    evidence_penalty = bool(state.get("errors"))
+    friction_logs = state.get("cognitive_friction_logs", [])
+    evidence_refs = list(state.get("evidence_references", []))
+    rendered_prompt = render_path_classifier_prompt(friction_logs, evidence_refs)
+
+    llm_response = call_llm(
+        rendered_prompt,
+        settings,
+        system_message=_SYSTEM_MESSAGE_ANALYST,
+        max_tokens=_MAX_TOKENS_ANALYSIS,
+    )
+    llm_classifications = _parse_llm_classifications(llm_response, friction_items)
+
+    if llm_classifications:
+        _logger.info("path_classifier_node: using LLM-driven classification")
+    else:
+        _logger.warning(
+            "path_classifier_node: LLM response received but parsing failed, "
+            "applying deterministic classification with guardrails"
+        )
+
+    llm_map: dict[str, dict[str, Any]] = {}
+    if llm_classifications:
+        for entry in llm_classifications:
+            llm_map[entry["friction_id"]] = entry
+
+    path_decisions: list[dict[str, Any]] = []
     for item in friction_items:
-        path = _classify_path(item)
-        # Guardrail: Path C is allowed only when perception/reasoning/adaptive action is needed.
-        if path == "C" and not (item.requires_perception or item.requires_reasoning or item.requires_adaptive_action):
-            path = "B"
+        llm_entry = llm_map.get(item.friction_id)
+        if llm_entry:
+            path = _apply_guardrail(llm_entry["recommended_path"], item)
+            confidence_label = llm_entry["confidence"].strip().lower()
+            confidence = _CONFIDENCE_LABEL_TO_FLOAT.get(confidence_label, 0.90)
+            rationale = (
+                f"{llm_entry['suitability_justification']} "
+                "Classified via mandatory Phase 2 suitability assessment."
+            )
+        else:
+            path = _apply_guardrail(_classify_path(item), item)
+            confidence = _decision_confidence(item, iteration_count=iteration, evidence_penalty=evidence_penalty)
+            rationale = f"{item.rationale} Classified via mandatory Phase 2 suitability assessment."
 
         decision = PathDecision(
             current_manual_action=item.current_manual_action,
             path=path,  # type: ignore[arg-type]
-            confidence=_decision_confidence(item, iteration_count=iteration, evidence_penalty=evidence_penalty),
-            rationale=f"{item.rationale} Classified via mandatory Phase 2 suitability assessment.",
+            confidence=confidence,
+            rationale=rationale,
             clean_core_guardrail=(
                 "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only."
             ),
@@ -547,6 +947,7 @@ def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str,
         "confidence_score": round(overall_confidence, 4),
         "quality_feedback": quality_feedback,
         "phase_status": phase_status,
+        "path_classifier_prompt": rendered_prompt,
     }
 
 
@@ -594,21 +995,128 @@ def Human_Escalation_Node(state: dict[str, Any], settings: Settings) -> dict[str
     return {"phase_status": phase_status, "errors": errors}
 
 
+_COLUMN_TO_FIELD: dict[str, str] = {
+    "Friction_ID": "friction_id",
+    "Current_Manual_Action": "current_manual_action",
+    "Where_in_Process": "where_in_process",
+    "Trigger_or_Input_Channel": "trigger_or_input_channel",
+    "Region_Impacted": "region_impacted",
+    "Systems_or_Tools_Mentioned": "systems_or_tools_mentioned",
+    "Why_It's_Friction": "why_its_friction",
+    "Evidence": "source_evidence",
+    "Open_Questions": "open_questions",
+}
+
+_COLUMN_DEFAULTS: dict[str, str] = {
+    "friction_id": "N/A",
+    "current_manual_action": "N/A",
+    "where_in_process": "Not specified",
+    "trigger_or_input_channel": "Not specified",
+    "region_impacted": "Global",
+    "systems_or_tools_mentioned": "Not specified",
+    "why_its_friction": "N/A",
+    "source_evidence": "N/A",
+    "open_questions": "",
+}
+
+
 def _build_cognitive_friction_table(cognitive_friction_logs: list[dict[str, Any]]) -> str:
-    header = (
-        "| [Current Manual Action] | Friction Type | Proposed Path | Rationale | Expected KPI Shift | Source References |\n"
-        "|---|---|---|---|---|---|"
-    )
-    rows = []
+    columns = FRICTION_POINTS_REQUIRED_COLUMNS
+    header_line = "| " + " | ".join(columns) + " |"
+    separator = "|" + "|".join("---" for _ in columns) + "|"
+    header = f"{header_line}\n{separator}"
+
+    rows: list[str] = []
     for item in cognitive_friction_logs:
+        cells: list[str] = []
+        for col in columns:
+            field = _COLUMN_TO_FIELD.get(col, col.lower())
+            default = _COLUMN_DEFAULTS.get(field, "")
+            cells.append(_markdown_cell(str(item.get(field, default))))
+        rows.append("| " + " | ".join(cells) + " |")
+    return "\n".join([header, *rows]) if rows else header
+
+
+def build_friction_points_markdown(
+    *,
+    process_name: str,
+    context_region: str,
+    cognitive_friction_logs: list[dict[str, Any]],
+) -> str:
+    """Render the full Cognitive Friction Analysis markdown document.
+
+    This is the primary output artifact for the friction_points_node.
+    It produces ONLY the table (no narrative preamble) per the stored prompt.
+    """
+    table = _build_cognitive_friction_table(cognitive_friction_logs)
+    return (
+        f"# Cognitive Friction Analysis: {process_name} ({context_region})\n\n"
+        f"{table}\n"
+    )
+
+
+def _confidence_label(value: float) -> str:
+    if value >= 0.95:
+        return "High"
+    if value >= 0.85:
+        return "Medium"
+    return "Low"
+
+
+def _orientation_label(path: str) -> str:
+    if path == "A":
+        return "Core"
+    return "Side-Car"
+
+
+def _supervision_label(path: str, confidence: float) -> str:
+    if path == "A":
+        return "No"
+    if path == "B":
+        if confidence < 0.90:
+            return "Conditional"
+        return "No"
+    # Path C
+    if confidence >= 0.97:
+        return "Conditional"
+    return "Yes"
+
+
+def _build_path_classification_table(
+    path_decisions: list[dict[str, Any]],
+    cognitive_friction_logs: list[dict[str, Any]],
+) -> str:
+    """Build the Path Classification (A/B/C) markdown table matching the prompt schema."""
+    friction_lookup: dict[str, dict[str, Any]] = {}
+    for item in cognitive_friction_logs:
+        action_key = str(item.get("current_manual_action", "")).strip().lower()
+        friction_lookup[action_key] = item
+
+    header = (
+        "| Friction_ID | Recommended_Path | Suitability_Justification "
+        "| Core_vs_SideCar_Orientation | Human_Supervision_Needed "
+        "| Confidence | Evidence | Open_Questions |\n"
+        "|---|---|---|---|---|---|---|---|"
+    )
+    rows: list[str] = []
+    for decision in path_decisions:
+        action = str(decision.get("current_manual_action", ""))
+        friction = friction_lookup.get(action.strip().lower(), {})
+        friction_id = str(friction.get("friction_id", "N/A"))
+        path = str(decision.get("path", ""))
+        confidence = float(decision.get("confidence", 0.0))
+
         rows.append(
-            "| {action} | {ftype} | {path} | {rationale} | {kpi} | {source} |".format(
-                action=_markdown_cell(str(item.get("current_manual_action", "N/A"))),
-                ftype=_markdown_cell(str(item.get("friction_type", "N/A"))),
-                path=_markdown_cell(str(item.get("proposed_path", "N/A"))),
-                rationale=_markdown_cell(str(item.get("rationale", "N/A"))),
-                kpi=_markdown_cell(str(item.get("expected_kpi_shift", "N/A"))),
-                source=_markdown_cell(str(item.get("source_evidence", "N/A"))),
+            "| {fid} | {path} | {justification} | {orientation} | {supervision} "
+            "| {confidence} | {evidence} | {questions} |".format(
+                fid=_markdown_cell(friction_id),
+                path=_markdown_cell(path),
+                justification=_markdown_cell(str(decision.get("rationale", ""))),
+                orientation=_markdown_cell(_orientation_label(path)),
+                supervision=_markdown_cell(_supervision_label(path, confidence)),
+                confidence=_markdown_cell(_confidence_label(confidence)),
+                evidence=_markdown_cell(str(friction.get("source_evidence", "N/A"))),
+                questions=_markdown_cell(str(friction.get("open_questions", ""))),
             )
         )
     return "\n".join([header, *rows]) if rows else header
@@ -673,11 +1181,7 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
     evidence_references = state.get("evidence_references", [])
 
     table = _build_cognitive_friction_table(cognitive_friction_logs)
-    decision_lines = [
-        f"- **{d.get('path')}** for `{d.get('current_manual_action')}`: {d.get('rationale')} "
-        f"(confidence {d.get('confidence', 0):.0%})"
-        for d in path_decisions
-    ]
+    path_classification_table = _build_path_classification_table(path_decisions, cognitive_friction_logs)
     regional_nuances = json.dumps(state.get("regional_nuances", {}), indent=2)
 
     report_title = f"# Re-Imagined Strategy Report: {process_name}"
@@ -707,12 +1211,7 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
         section_order,
         section_registry,
         "## Cognitive Friction Analysis",
-        (
-            "The following table is the mandatory friction inventory used by the Architect phase. Each row identifies "
-            "where humans currently act as middleware, what category of friction exists, and which intervention path "
-            "provides the safest and fastest improvement without violating Clean Core policies.\n\n"
-            f"{table}"
-        ),
+        table,
     )
 
     _add_unique_section(
@@ -808,7 +1307,12 @@ def _build_strategy_report(state: dict[str, Any], settings: Settings) -> str:
         section_order,
         section_registry,
         "## Path Design Decisions",
-        "\n".join(decision_lines) if decision_lines else "- No decisions available.",
+        (
+            "The following table classifies each friction point into exactly one path using "
+            "the mandatory Phase 2 suitability assessment. Path C is assigned only when "
+            "perception, reasoning, or adaptive action is required.\n\n"
+            f"{path_classification_table}"
+        ),
     )
 
     _add_unique_section(
@@ -942,36 +1446,54 @@ def _signal_reference_ids(raw_inputs: dict[str, Any], patterns: list[str], max_r
 
 
 def _flow_signals(raw_inputs: dict[str, Any], combined_text: str) -> dict[str, dict[str, Any]]:
+    graphs = raw_inputs.get("process_graphs", [])
+    primary_graph = graphs[0] if graphs else None
+    structure_signals = graph_signals(primary_graph)
     text = combined_text.lower()
+
+    # Fallback keeps legacy behavior if no graph was extracted.
+    order_type_enabled = structure_signals["order_type_gateway"] or bool(
+        re.search(r"\bwhat is the order type\b|\bconsignment\b", text)
+    )
+    capture_failure_enabled = structure_signals["capture_failure_gateway"] or bool(
+        re.search(r"\border capturing failure\b|\bedi failure\b|\bfailed idoc\b", text)
+    )
+    change_handler_enabled = structure_signals["change_handler"] or bool(
+        re.search(r"\bva02\b|\bchange request\b|\bchange sales order\b", text)
+    )
+    availability_enabled = structure_signals["availability_check"] or bool(
+        re.search(r"\bcheck product and service availability\b|\batp\b", text)
+    )
     signals: dict[str, dict[str, Any]] = {
         "order_type_gateway": {
-            "enabled": bool(re.search(r"\bwhat is the order type\b|\bconsignment\b", text)),
+            "enabled": order_type_enabled,
             "refs": _signal_reference_ids(
                 raw_inputs,
                 [r"\bwhat is the order type\b", r"\bconsignment\b", r"\benter standard order details\b"],
             ),
         },
         "capture_failure_gateway": {
-            "enabled": bool(re.search(r"\border capturing failure\b|\bedi failure\b|\bfailed idoc\b", text)),
+            "enabled": capture_failure_enabled,
             "refs": _signal_reference_ids(
                 raw_inputs,
                 [r"\border capturing failure\b", r"\bedi failure\b", r"\bfailed idoc\b"],
             ),
         },
         "change_handler": {
-            "enabled": bool(re.search(r"\bva02\b|\bchange request\b|\bchange sales order\b", text)),
+            "enabled": change_handler_enabled,
             "refs": _signal_reference_ids(
                 raw_inputs,
                 [r"\bva02\b", r"\bchange request\b", r"\bchange sales order\b"],
             ),
         },
         "availability_check": {
-            "enabled": bool(re.search(r"\bcheck product and service availability\b|\batp\b", text)),
+            "enabled": availability_enabled,
             "refs": _signal_reference_ids(
                 raw_inputs,
                 [r"\bcheck product and service availability\b", r"\batp\b"],
             ),
         },
+        "manual_loop_risk": {"enabled": structure_signals["manual_loop_risk"], "refs": []},
     }
     return signals
 
@@ -1171,7 +1693,39 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
             "Set manual_approval=true only after human checkpoint review."
         )
 
-    strategy_report = _build_strategy_report(state, settings)
+    # --- LLM-powered strategy report (required) ---
+    bp_prompt = render_blueprint_prompt(
+        process_name=state.get("process_name", "Process"),
+        context_region=state.get("context_region", "Global"),
+        trust_gap_phase=state.get("trust_gap_phase", "Shadow"),
+        friction_items=state.get("cognitive_friction_logs", []),
+        path_decisions=state.get("path_decisions", []),
+        regional_nuances=state.get("regional_nuances", {}),
+        evidence_references=state.get("evidence_references", []),
+    )
+    llm_response = call_llm(
+        bp_prompt,
+        settings,
+        system_message=_SYSTEM_MESSAGE_BLUEPRINT,
+        max_tokens=_MAX_TOKENS_BLUEPRINT,
+    )
+
+    llm_report: str | None = None
+    if count_words(llm_response) >= settings.min_report_words:
+        try:
+            validate_strategy_report(llm_response, min_words=settings.min_report_words)
+            llm_report = llm_response
+            _logger.info("Blueprint_Node: using LLM-generated strategy report (%d words)", count_words(llm_response))
+        except Exception as exc:
+            _logger.warning("Blueprint_Node: LLM report failed validation (%s), using template to meet structure requirements", exc)
+    else:
+        _logger.warning(
+            "Blueprint_Node: LLM response too short (%d words < %d required), using template",
+            count_words(llm_response),
+            settings.min_report_words,
+        )
+
+    strategy_report = llm_report if llm_report else _build_strategy_report(state, settings)
     mermaid_xml = _build_visual_architecture_xml(state)
 
     validate_strategy_report(strategy_report, min_words=settings.min_report_words)
