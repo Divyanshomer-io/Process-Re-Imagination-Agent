@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import json
 import re
 from typing import Any
 
 
 REQUIRED_REPORT_HEADINGS = [
     "## Executive Summary",
-    "## Cognitive Friction Analysis",
+    "## Current Reality Synthesis",
+    "## Strategy: Layered Re-Imagination",
     "## Architecture of the Future State",
     "## Technical Stack",
     "## The Trust Gap Protocol",
-    "## Executive Simplified Summary",
+    "## Risks, Guardrails, and Open Questions",
 ]
 
 
@@ -51,29 +53,17 @@ def validate_strategy_report(report: str, min_words: int = 2000) -> None:
         if heading not in report:
             raise ValueError(f"Missing required report section: {heading}")
 
-    level2_headings = re.findall(r"^##\s+(.+)$", report, re.M)
-    appendix_sections = [heading for heading in level2_headings if "appendix" in heading.lower()]
-    control_baseline_sections = [
-        heading for heading in level2_headings if ("control" in heading.lower() and "baseline" in heading.lower())
-    ]
-    if len(appendix_sections) != 1:
-        raise ValueError("Appendix section must appear exactly once.")
-    if len(control_baseline_sections) != 1:
-        raise ValueError("Control Baseline section must appear exactly once.")
-
-    summary_heading = "## Executive Simplified Summary"
-    if report.count(summary_heading) != 1:
-        raise ValueError("Executive Simplified Summary section must appear exactly once.")
-    summary_body = report.split(summary_heading, 1)[1].strip()
-    if "\n## " in summary_body:
-        raise ValueError("Executive Simplified Summary must be the terminal section.")
-    if _count_sentences(summary_body) != 3:
-        raise ValueError("Executive Simplified Summary must contain exactly 3 sentences.")
+    risks_heading = "## Risks, Guardrails, and Open Questions"
+    if report.count(risks_heading) != 1:
+        raise ValueError("Risks, Guardrails, and Open Questions section must appear exactly once.")
+    risks_body = report.split(risks_heading, 1)[1].strip()
+    if "\n## " in risks_body:
+        raise ValueError("Risks, Guardrails, and Open Questions must be the terminal section.")
 
     if "Clean Core" not in report:
         raise ValueError("Report must explicitly describe Clean Core strategy.")
-    if "Side-Car" not in report and "Side Car" not in report:
-        raise ValueError("Report must explicitly describe Side-Car strategy.")
+    if "Side-Car" not in report and "Side Car" not in report and "BTP" not in report:
+        raise ValueError("Report must explicitly describe Side-Car / SAP BTP strategy.")
     if "never embedded in the ERP kernel" not in report:
         raise ValueError("Report must explicitly state custom logic is never embedded in ERP kernel.")
     if count_words(report) < min_words:
@@ -155,6 +145,97 @@ def validate_mermaid_xml(mermaid_xml: str) -> None:
             raise ValueError("China blueprint must include regional gateway node.")
         if "CH_EMAIL -->|" not in content or "CN_GATEWAY" not in content:
             raise ValueError("China blueprint must route intake through gateway before Side-Car.")
+
+
+def validate_process_blueprint_xml(blueprint_xml: str) -> None:
+    """Validate LLM-generated ProcessBlueprint XML (Prompt 5 output).
+
+    Checks structural requirements: valid XML, ProcessBlueprint root element,
+    required child elements, and presence of the 3-area Mermaid subgraphs.
+    """
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(blueprint_xml)
+    except Exception as exc:
+        raise ValueError(f"Invalid XML in ProcessBlueprint: {exc}") from exc
+
+    if root.tag != "ProcessBlueprint":
+        raise ValueError(f"Root element must be ProcessBlueprint, got '{root.tag}'.")
+    if root.attrib.get("version") != "1.0":
+        raise ValueError("ProcessBlueprint version must be 1.0.")
+
+    process_id = root.find("ProcessID")
+    if process_id is None or not (process_id.text or "").strip():
+        raise ValueError("ProcessID element is required and must not be empty.")
+
+    arch_type = root.find("ArchitectureType")
+    if arch_type is None or (arch_type.text or "").strip() != "Agentic_SideCar":
+        raise ValueError("ArchitectureType must be Agentic_SideCar.")
+
+    diagram = root.find("Diagram")
+    if diagram is None:
+        raise ValueError("Diagram element is missing.")
+    if diagram.attrib.get("type") != "mermaid":
+        raise ValueError("Diagram type attribute must be 'mermaid'.")
+
+    content = (diagram.text or "").strip()
+    if not content:
+        raise ValueError("Diagram element must contain Mermaid code.")
+
+    required_subgraphs = ["External", "Internal_System", "Employees"]
+    for sg in required_subgraphs:
+        if f"subgraph {sg}" not in content:
+            raise ValueError(f"Mermaid diagram missing required 3-area subgraph: {sg}")
+
+    nested_subgraphs = ["Agents_SAP_Joule_GenAI", "SAP_BTP_Automation", "SAP_S4HANA_Clean_Core"]
+    for sg in nested_subgraphs:
+        if f"subgraph {sg}" not in content:
+            raise ValueError(f"Mermaid diagram missing required nested subgraph inside Internal_System: {sg}")
+
+    if "flowchart" not in content.split("\n")[0].lower():
+        raise ValueError("Mermaid diagram must start with 'flowchart LR' or 'flowchart TB'.")
+
+    path_labels = ["(Path A)", "(Path B)", "(Path C)", "(HITL)"]
+    found_labels = [label for label in path_labels if label in content]
+    if not found_labels:
+        raise ValueError("Node labels must include path suffixes: (Path A), (Path B), (Path C), or (HITL).")
+
+
+def validate_use_case_cards_json(raw_json: str) -> dict[str, Any]:
+    """Validate the LLM-generated use case cards JSON structure.
+
+    Returns the parsed dict if valid; raises ValueError on structural problems.
+    """
+    try:
+        data = json.loads(raw_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Use case cards output is not valid JSON: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("Use case cards JSON root must be an object.")
+
+    for field in ("process_name", "use_case_cards"):
+        if field not in data:
+            raise ValueError(f"Use case cards JSON missing required top-level field: {field}")
+
+    cards = data["use_case_cards"]
+    if not isinstance(cards, list) or len(cards) == 0:
+        raise ValueError("use_case_cards must be a non-empty array.")
+
+    required_card_fields = (
+        "use_case_id", "title", "path", "sap_target",
+        "mechanism", "evidence",
+    )
+    for idx, card in enumerate(cards):
+        if not isinstance(card, dict):
+            raise ValueError(f"use_case_cards[{idx}] must be an object.")
+        for field in required_card_fields:
+            if field not in card:
+                raise ValueError(f"use_case_cards[{idx}] missing required field: {field}")
+        if card.get("path") not in ("A", "B", "C"):
+            raise ValueError(f"use_case_cards[{idx}].path must be A, B, or C.")
+
+    return data
 
 
 def validate_methodology_compliance(state: dict[str, Any], min_report_words: int = 2000) -> None:

@@ -1,23 +1,24 @@
-TASK: Cognitive Friction Refinement (JSON Output Only)
+TASK: Pain Points & Opportunities Refinement (JSON Output Only)
 
 Role: Principal Enterprise AI Architect and Business Transformation Strategist.
 Mode: High reasoning.
 
 Goal
-Refine the existing Cognitive Friction Analysis based on quality feedback.
-Strengthen evidence mapping, clarify friction descriptions, and ensure
+Refine the existing Pain Points & Opportunities analysis based on quality feedback.
+Strengthen evidence mapping, clarify descriptions, and ensure
 every row is grounded in source documents.
 
 Inputs
-1) The current Cognitive Friction Analysis table (may have weak evidence or vague descriptions).
+1) The current Pain Points & Opportunities table (may have weak evidence or vague descriptions).
 2) Quality feedback identifying gaps.
 3) Source evidence register from uploaded documents.
 
 Output (STRICT)
 Produce ONLY a JSON array of refined friction items.
 Each element must have these keys:
-- friction_id
-- current_manual_action (improved description)
+- friction_id (Item_ID, e.g. P-001)
+- issue_or_opportunity (short label)
+- current_manual_action (improved description of current observed practice)
 - where_in_process (step/activity name; "Not specified" if unknown)
 - trigger_or_input_channel (only if stated; else "Not specified")
 - region_impacted (Global or specific region)

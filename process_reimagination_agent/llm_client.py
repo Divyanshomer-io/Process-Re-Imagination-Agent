@@ -16,6 +16,9 @@ import time
 from typing import Any
 
 import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from process_reimagination_agent.config import Settings
 
@@ -45,7 +48,7 @@ def _generate_daia_token(settings: Settings) -> str:
             "client_id": settings.daia_client_id,
             "client_secret": settings.daia_client_secret,
         }
-        resp = requests.post(url, json=payload, timeout=30, verify=settings.daia_verify_ssl)
+        resp = requests.post(url, json=payload, timeout=30, verify=False)
         resp.raise_for_status()
         token = resp.json()["token"]
         _token_cache["token"] = token
@@ -57,6 +60,10 @@ def _invalidate_daia_token() -> None:
     with _token_lock:
         _token_cache["token"] = None
         _token_cache["expires_at"] = 0.0
+
+
+_DAIA_CONNECT_TIMEOUT = 30
+_DAIA_READ_TIMEOUT = 300
 
 
 def _call_daia(
@@ -76,16 +83,19 @@ def _call_daia(
     body: dict[str, Any] = {
         "model": settings.daia_model,
         "messages": messages,
-        "temperature": settings.model_temperature,
+        "max_tokens": max_tokens if max_tokens is not None else 16384,
     }
-    if max_tokens is not None:
-        body["max_tokens"] = max_tokens
 
     for attempt in range(2):
         token = _generate_daia_token(settings)
         headers = {"Authorization": f"Bearer {token}"}
+        _logger.info("DAIA request: model=%s, max_tokens=%s, attempt=%d", settings.daia_model, body["max_tokens"], attempt + 1)
         resp = requests.post(
-            url, json=body, headers=headers, timeout=120, verify=settings.daia_verify_ssl,
+            url,
+            json=body,
+            headers=headers,
+            timeout=(_DAIA_CONNECT_TIMEOUT, _DAIA_READ_TIMEOUT),
+            verify=False,
         )
         if resp.status_code == 401 and attempt == 0:
             _logger.warning("DAIA token expired, refreshing and retrying")
@@ -164,6 +174,10 @@ class LLMNotConfiguredError(RuntimeError):
     """Raised when no LLM backend is configured and a call is attempted."""
 
 
+_DAIA_CALL_RETRIES = 3
+_DAIA_RETRY_BACKOFF = 5
+
+
 def call_llm(
     prompt: str,
     settings: Settings,
@@ -173,7 +187,7 @@ def call_llm(
 ) -> str:
     """Send *prompt* to the best available LLM backend and return the reply.
 
-    Priority: DAIA (primary) -> Azure OpenAI (fallback) -> OpenAI (fallback).
+    Priority: DAIA (primary, with retries) -> Azure OpenAI (fallback) -> OpenAI (fallback).
     Raises ``LLMNotConfiguredError`` when no backend is configured.
     Raises ``RuntimeError`` when all configured backends fail.
     """
@@ -184,42 +198,66 @@ def call_llm(
             ".env file or environment variables."
         )
 
+    prompt_preview = prompt[:80].replace("\n", " ")
+    print(f"  [LLM] call_llm invoked (prompt: {len(prompt)} chars, max_tokens: {max_tokens}) -- \"{prompt_preview}...\"")
+
     errors_encountered: list[str] = []
 
     if settings.daia_enabled:
-        try:
-            result = _call_daia(prompt, settings, system_message=system_message, max_tokens=max_tokens)
-            if result:
-                _logger.info("LLM response received via DAIA endpoint")
-                return result
-            errors_encountered.append("DAIA returned empty response")
-        except Exception as exc:
-            errors_encountered.append(f"DAIA: {exc}")
-            _logger.warning("DAIA call failed, trying fallback: %s", exc)
+        for daia_attempt in range(1, _DAIA_CALL_RETRIES + 1):
+            try:
+                result = _call_daia(prompt, settings, system_message=system_message, max_tokens=max_tokens)
+                if result:
+                    print(f"  [LLM] Response received via DAIA ({len(result)} chars)")
+                    _logger.info("LLM response received via DAIA endpoint")
+                    return result
+                errors_encountered.append(f"DAIA returned empty response (attempt {daia_attempt})")
+            except Exception as exc:
+                errors_encountered.append(f"DAIA (attempt {daia_attempt}): {exc}")
+                action = "retrying" if daia_attempt < _DAIA_CALL_RETRIES else "trying fallback"
+                print(f"  [LLM] DAIA failed (attempt {daia_attempt}/{_DAIA_CALL_RETRIES}), {action}: {exc}")
+                _logger.warning(
+                    "DAIA call failed (attempt %d/%d), %s: %s",
+                    daia_attempt,
+                    _DAIA_CALL_RETRIES,
+                    action,
+                    exc,
+                )
+                if daia_attempt < _DAIA_CALL_RETRIES:
+                    wait = _DAIA_RETRY_BACKOFF * daia_attempt
+                    _logger.info("Waiting %ds before DAIA retry...", wait)
+                    time.sleep(wait)
 
     if settings.azure_enabled:
         try:
+            print("  [LLM] Trying Azure OpenAI fallback...")
             result = _call_azure_openai(prompt, settings, system_message=system_message, max_tokens=max_tokens)
             if result:
+                print(f"  [LLM] Response received via Azure OpenAI ({len(result)} chars)")
                 _logger.info("LLM response received via Azure OpenAI")
                 return result
             errors_encountered.append("Azure OpenAI returned empty response")
         except Exception as exc:
             errors_encountered.append(f"Azure OpenAI: {exc}")
+            print(f"  [LLM] Azure OpenAI failed: {exc}")
             _logger.warning("Azure OpenAI call failed: %s", exc)
 
     if settings.openai_enabled:
         try:
+            print("  [LLM] Trying OpenAI fallback...")
             result = _call_openai(prompt, settings, system_message=system_message, max_tokens=max_tokens)
             if result:
+                print(f"  [LLM] Response received via OpenAI ({len(result)} chars)")
                 _logger.info("LLM response received via OpenAI")
                 return result
             errors_encountered.append("OpenAI returned empty response")
         except Exception as exc:
             errors_encountered.append(f"OpenAI: {exc}")
+            print(f"  [LLM] OpenAI failed: {exc}")
             _logger.warning("OpenAI call failed: %s", exc)
 
     error_detail = "; ".join(errors_encountered)
+    print(f"  [LLM] ALL BACKENDS FAILED: {error_detail}")
     raise RuntimeError(
         f"All configured LLM backends failed. Errors: {error_detail}"
     )

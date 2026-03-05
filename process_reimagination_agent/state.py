@@ -33,6 +33,7 @@ class AgentState(TypedDict, total=False):
     manual_approval: bool
     strategy_report_markdown: str
     mermaid_xml: str
+    use_case_cards_json: str
     errors: list[str]
     quality_gate_result: Literal["refine", "blueprint", "escalate"]
     force_confidence_override: float
@@ -65,6 +66,7 @@ def create_initial_state(manifest: InputManifest, trust_gap_phase: TrustGapPhase
         manual_approval=False,
         strategy_report_markdown="",
         mermaid_xml="",
+        use_case_cards_json="",
         errors=[],
         quality_gate_result="refine",
     )

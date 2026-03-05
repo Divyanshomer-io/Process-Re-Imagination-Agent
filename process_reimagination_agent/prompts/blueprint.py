@@ -18,18 +18,12 @@ _PROMPT_FILE = _TEMPLATE_DIR / "blueprint.md"
 
 BLUEPRINT_REQUIRED_SECTIONS: tuple[str, ...] = (
     "Executive Summary",
-    "Cognitive Friction Analysis",
-    "Source Evidence Register",
+    "Current Reality Synthesis",
+    "Strategy: Layered Re-Imagination using Path A/B/C",
     "Architecture of the Future State",
     "Technical Stack",
-    "Integration Design Deep Dive",
-    "Agent Persona Reasoning Model",
-    "The Trust Gap Protocol",
-    "Path Design Decisions",
-    "Regional Policy Registry",
-    "Delivery and Rollout Plan",
-    "Appendix: Control and Operability Baseline",
-    "Executive Simplified Summary",
+    "Trust Gap Protocol",
+    "Risks, Guardrails, and Open Questions",
 )
 
 
@@ -56,19 +50,20 @@ def validate_prompt_sections(prompt_text: str | None = None) -> list[str]:
 
 def _format_friction_table(friction_items: list[dict[str, Any]]) -> str:
     header = (
-        "| Friction_ID | Current_Manual_Action | Where_in_Process "
+        "| Item_ID | Issue_or_Opportunity | Current_Observed_Practice | Where_in_Process "
         "| Trigger_or_Input_Channel | Region_Impacted "
-        "| Systems_or_Tools_Mentioned | Why_It's_Friction "
+        "| Systems_or_Tools_Mentioned | Why_It_Matters "
         "| Evidence | Open_Questions |\n"
-        "|---|---|---|---|---|---|---|---|---|"
+        "|---|---|---|---|---|---|---|---|---|---|"
     )
     rows: list[str] = []
     for item in friction_items:
         rows.append(
-            "| {fid} | {action} | {where} | {trigger} | {region} "
+            "| {fid} | {issue} | {practice} | {where} | {trigger} | {region} "
             "| {systems} | {why} | {evidence} | {questions} |".format(
                 fid=item.get("friction_id", "N/A"),
-                action=item.get("current_manual_action", "N/A"),
+                issue=item.get("issue_or_opportunity", "N/A"),
+                practice=item.get("current_manual_action", "N/A"),
                 where=item.get("where_in_process", "Not specified"),
                 trigger=item.get("trigger_or_input_channel", "Not specified"),
                 region=item.get("region_impacted", "Global"),
@@ -117,6 +112,7 @@ def render_blueprint_prompt(
     path_decisions: list[dict[str, Any]],
     regional_nuances: dict[str, Any],
     evidence_references: list[dict[str, str]],
+    report_mode: str = "FULL",
 ) -> str:
     """Build the complete blueprint LLM prompt with full state context injected."""
     template = get_blueprint_prompt()
@@ -128,4 +124,5 @@ def render_blueprint_prompt(
         path_decisions=_format_path_decisions(path_decisions),
         regional_nuances=json.dumps(regional_nuances, indent=2),
         evidence_register=_format_evidence_register(evidence_references),
+        report_mode=report_mode,
     )

@@ -41,6 +41,7 @@ class Settings(BaseModel):
     confidence_threshold: float = Field(default=0.95, gt=0.0, lt=1.0)
     max_refinement_loops: int = Field(default=3, ge=1, le=10)
     min_report_words: int = Field(default=2000, ge=500)
+    report_mode: Literal["FULL", "DEMO"] = "FULL"
     trust_gap_default_phase: Literal["Shadow", "Co-Pilot", "Autopilot"] = "Shadow"
     output_root: Path = Path("outputs")
     durable_artifact_root: Path = Path("artifacts")
@@ -125,14 +126,15 @@ class Settings(BaseModel):
             openai_api_key=os.getenv("OPENAI_API_KEY"),
             openai_model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             daia_base_url=os.getenv("DAIA_BASE_URL", "https://daia.privatelink.azurewebsites.net"),
-            daia_client_id=os.getenv("DAIA_CLIENT_ID"),
-            daia_client_secret=os.getenv("DAIA_CLIENT_SECRET"),
+            daia_client_id=os.getenv("DAIA_CLIENT_ID") or os.getenv("CLIENT_ID"),
+            daia_client_secret=os.getenv("DAIA_CLIENT_SECRET") or os.getenv("CLIENT_SECRET"),
             daia_model=os.getenv("DAIA_MODEL", "gpt-5"),
             daia_ca_bundle=os.getenv("DAIA_CA_BUNDLE"),
             model_temperature=float(os.getenv("MODEL_TEMPERATURE", "0.0")),
             confidence_threshold=float(os.getenv("CONFIDENCE_THRESHOLD", "0.95")),
             max_refinement_loops=int(os.getenv("MAX_REFINEMENT_LOOPS", "3")),
             min_report_words=int(os.getenv("MIN_REPORT_WORDS", "2000")),
+            report_mode=os.getenv("REPORT_MODE", "FULL"),  # type: ignore[arg-type]
             trust_gap_default_phase=os.getenv("TRUST_GAP_DEFAULT_PHASE", "Shadow"),  # type: ignore[arg-type]
             output_root=Path(os.getenv("OUTPUT_ROOT", "outputs")),
             durable_artifact_root=Path(os.getenv("DURABLE_ARTIFACT_ROOT", "artifacts")),

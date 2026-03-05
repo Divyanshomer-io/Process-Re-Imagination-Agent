@@ -17,14 +17,15 @@ _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _PROMPT_FILE = _TEMPLATE_DIR / "path_classifier.md"
 
 PATH_CLASSIFIER_REQUIRED_COLUMNS: tuple[str, ...] = (
-    "friction_id",
-    "recommended_path",
-    "suitability_justification",
-    "core_vs_sidecar_orientation",
-    "human_supervision_needed",
-    "confidence",
-    "evidence",
-    "open_questions",
+    "Item_ID",
+    "Recommended_Path",
+    "Suitability_Justification",
+    "SAP_Target",
+    "Core_vs_SideCar_Orientation",
+    "Human_Supervision_Needed",
+    "Confidence",
+    "Evidence",
+    "Open_Questions",
 )
 
 
@@ -54,19 +55,20 @@ def validate_prompt_columns(prompt_text: str | None = None) -> list[str]:
 
 def _format_friction_table(friction_items: list[dict[str, Any]]) -> str:
     header = (
-        "| Friction_ID | Current_Manual_Action | Where_in_Process "
+        "| Item_ID | Issue_or_Opportunity | Current_Observed_Practice | Where_in_Process "
         "| Trigger_or_Input_Channel | Region_Impacted "
-        "| Systems_or_Tools_Mentioned | Why_It's_Friction "
+        "| Systems_or_Tools_Mentioned | Why_It_Matters "
         "| Evidence | Open_Questions |\n"
-        "|---|---|---|---|---|---|---|---|---|"
+        "|---|---|---|---|---|---|---|---|---|---|"
     )
     rows: list[str] = []
     for item in friction_items:
         rows.append(
-            "| {fid} | {action} | {where} | {trigger} | {region} "
+            "| {fid} | {issue} | {practice} | {where} | {trigger} | {region} "
             "| {systems} | {why} | {evidence} | {questions} |".format(
                 fid=item.get("friction_id", "N/A"),
-                action=item.get("current_manual_action", "N/A"),
+                issue=item.get("issue_or_opportunity", "N/A"),
+                practice=item.get("current_manual_action", "N/A"),
                 where=item.get("where_in_process", "Not specified"),
                 trigger=item.get("trigger_or_input_channel", "Not specified"),
                 region=item.get("region_impacted", "Global"),

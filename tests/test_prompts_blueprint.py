@@ -30,7 +30,8 @@ def test_render_blueprint_prompt_injects_data() -> None:
         trust_gap_phase="Shadow",
         friction_items=[
             {
-                "friction_id": "F-001",
+                "friction_id": "P-001",
+                "issue_or_opportunity": "Manual order intake",
                 "current_manual_action": "Manual order entry",
                 "where_in_process": "Order Intake",
                 "trigger_or_input_channel": "Email",
@@ -54,7 +55,7 @@ def test_render_blueprint_prompt_injects_data() -> None:
     )
     assert "Order Intake" in rendered
     assert "ANZ" in rendered
-    assert "F-001" in rendered
+    assert "P-001" in rendered
     assert "Shadow" in rendered
 
 

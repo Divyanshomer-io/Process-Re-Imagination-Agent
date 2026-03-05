@@ -18,8 +18,9 @@ class InputManifest(BaseModel):
 class FrictionItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    # Cognitive Friction Analysis table columns (strict output schema).
+    # Pain Points & Opportunities table columns (strict output schema).
     friction_id: str = ""
+    issue_or_opportunity: str = ""
     current_manual_action: str = Field(min_length=3)
     where_in_process: str = "Not specified"
     trigger_or_input_channel: str = "Not specified"

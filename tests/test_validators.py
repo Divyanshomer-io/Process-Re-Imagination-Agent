@@ -8,7 +8,7 @@ def _valid_report(min_words: int = 2000) -> str:
 ## Executive Summary
 Clean Core and Side-Car operating model for agentic orchestration with custom logic never embedded in the ERP kernel.
 
-## Cognitive Friction Analysis
+## Pain Points & Opportunities (A/B/C Candidates)
 | [Current Manual Action] | Friction Type | Proposed Path | Rationale | Expected KPI Shift |
 |---|---|---|---|---|
 | Manual order entry | Human middleware | C | Requires perception and reasoning | 50% faster |

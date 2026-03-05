@@ -9,7 +9,7 @@ from process_reimagination_agent.prompts.input_refiner import (
 def test_input_refiner_prompt_loads_successfully() -> None:
     prompt = get_input_refiner_prompt()
     assert len(prompt) > 100
-    assert "Cognitive Friction Refinement" in prompt
+    assert "Pain Points & Opportunities Refinement" in prompt
 
 
 def test_input_refiner_prompt_contains_all_required_fields() -> None:
@@ -26,7 +26,8 @@ def test_input_refiner_prompt_is_cached() -> None:
 def test_render_input_refiner_prompt_injects_data() -> None:
     friction_items = [
         {
-            "friction_id": "F-001",
+            "friction_id": "P-001",
+            "issue_or_opportunity": "Manual order intake",
             "current_manual_action": "Test action",
             "where_in_process": "Test step",
             "trigger_or_input_channel": "Email",
@@ -42,7 +43,7 @@ def test_render_input_refiner_prompt_injects_data() -> None:
         quality_feedback=["Low confidence"],
         evidence_references=[{"id": "DOC1", "source": "test.txt", "excerpt": "sample"}],
     )
-    assert "F-001" in rendered
+    assert "P-001" in rendered
     assert "Low confidence" in rendered
     assert "DOC1" in rendered
 

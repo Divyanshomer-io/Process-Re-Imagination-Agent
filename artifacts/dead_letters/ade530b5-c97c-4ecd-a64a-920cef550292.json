@@ -1,0 +1,53 @@
+{
+  "thread_id": "ade530b5-c97c-4ecd-a64a-920cef550292",
+  "reason": "run_failed: All configured LLM backends failed. Errors: DAIA: HTTPSConnectionPool(host='daia.privatelink.azurewebsites.net', port=443): Max retries exceeded with url: /authentication-service/api/v1/auth/generate-token (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1000)')))",
+  "payload": {
+    "state": {
+      "raw_inputs": {
+        "manifest": {
+          "process_name": "Order Intake",
+          "context_region": "Global",
+          "pain_points": [
+            "Manual data entry",
+            "Order delays"
+          ],
+          "files": [
+            "C:\\Users\\lildivya\\Downloads\\L4 - Enter Order Into System - 1.0.0 (1).pdf",
+            "C:\\Users\\lildivya\\Downloads\\L3 - Perform Order Intake vf (1) (1).pdf"
+          ],
+          "additional_context": {}
+        },
+        "channel": "",
+        "order_status": "open"
+      },
+      "cognitive_friction_logs": [],
+      "path_decisions": [],
+      "refined_blueprint": {},
+      "process_name": "Order Intake",
+      "context_region": "Global",
+      "pain_points": [
+        "Manual data entry",
+        "Order delays"
+      ],
+      "regional_nuances": {},
+      "evidence_references": [],
+      "canonical_documents": [],
+      "process_graphs": [],
+      "phase_status": {
+        "phase_1_current_reality_synthesis": "pending",
+        "phase_2_agentic_reasoning": "pending",
+        "phase_3_blueprint_generation": "pending"
+      },
+      "confidence_score": 0.0,
+      "trust_gap_phase": "Shadow",
+      "quality_feedback": [],
+      "refinement_iterations": 0,
+      "manual_approval": false,
+      "strategy_report_markdown": "",
+      "mermaid_xml": "",
+      "errors": [],
+      "quality_gate_result": "refine"
+    }
+  },
+  "created_at_epoch": 1772694883
+}

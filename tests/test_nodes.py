@@ -42,7 +42,8 @@ def test_path_classifier_node_path_c_guardrail_enforced() -> None:
     state = create_initial_state(manifest)
     state["cognitive_friction_logs"] = [
         {
-            "friction_id": "F-001",
+            "friction_id": "P-001",
+            "issue_or_opportunity": "Status update automation",
             "current_manual_action": "Send status update email",
             "where_in_process": "Not specified",
             "trigger_or_input_channel": "Not specified",

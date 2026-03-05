@@ -57,9 +57,9 @@ def test_cli_run_then_resume(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
     friction_md_path = tmp_path / thread_id / "friction_points.md"
     assert friction_md_path.exists()
     friction_md_text = friction_md_path.read_text(encoding="utf-8")
-    assert "Cognitive Friction Analysis" in friction_md_text
-    assert "Friction_ID" in friction_md_text
-    assert "F-001" in friction_md_text
+    assert "Pain Points & Opportunities" in friction_md_text
+    assert "Item_ID" in friction_md_text
+    assert "P-001" in friction_md_text
     assert (tmp_path / thread_id / "path_classification.md").exists()
     friction_payload = json.loads(friction_json_path.read_text(encoding="utf-8"))
     assert "evidence_references" in friction_payload

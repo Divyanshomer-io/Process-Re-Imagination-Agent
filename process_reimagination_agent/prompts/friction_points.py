@@ -1,4 +1,4 @@
-"""Loader for the Cognitive Friction Analysis prompt template.
+"""Loader for the Pain Points & Opportunities Extractor prompt template.
 
 The canonical prompt lives in ``templates/friction_points.md`` so that business
 stakeholders can review and version it independently of Python code.  This
@@ -15,13 +15,14 @@ _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _PROMPT_FILE = _TEMPLATE_DIR / "friction_points.md"
 
 FRICTION_POINTS_REQUIRED_COLUMNS: tuple[str, ...] = (
-    "Friction_ID",
-    "Current_Manual_Action",
+    "Item_ID",
+    "Issue_or_Opportunity",
+    "Current_Observed_Practice",
     "Where_in_Process",
     "Trigger_or_Input_Channel",
     "Region_Impacted",
     "Systems_or_Tools_Mentioned",
-    "Why_It's_Friction",
+    "Why_It_Matters",
     "Evidence",
     "Open_Questions",
 )
@@ -29,7 +30,7 @@ FRICTION_POINTS_REQUIRED_COLUMNS: tuple[str, ...] = (
 
 @lru_cache(maxsize=1)
 def get_friction_points_prompt() -> str:
-    """Return the full Cognitive Friction Analysis prompt text."""
+    """Return the full Pain Points & Opportunities Extractor prompt text."""
     if not _PROMPT_FILE.exists():
         raise FileNotFoundError(
             f"Friction-points prompt template not found at {_PROMPT_FILE}. "

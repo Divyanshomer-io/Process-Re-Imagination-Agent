@@ -216,6 +216,10 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
     )
     (output_dir / "path_classification.md").write_text(path_classification_md, encoding="utf-8")
 
+    use_case_cards = state.get("use_case_cards_json") or state.get("refined_blueprint", {}).get("use_case_cards_json", "")
+    if use_case_cards:
+        (output_dir / "use_case_cards.json").write_text(use_case_cards, encoding="utf-8")
+
     _save_json(output_dir / "final_state.json", state)
     persist_artifact(settings, thread_id=thread_id, name="final_state.json", payload=_json_safe(state))
 
@@ -360,15 +364,21 @@ def resume_workflow(
     state["raw_inputs"]["approved_by"] = approver
     state["raw_inputs"]["approval_notes"] = notes
 
-    # Approval received: compile without interrupt to execute Blueprint_Node.
-    graph = build_graph(
-        checkpointer=MemorySaver(),
-        settings=settings,
-        interrupt_before_blueprint=False,
-    )
+    LOGGER.info("Resume: loaded pending state for thread_id=%s, skipping to Blueprint_Node", thread_id)
+
+    # Run Blueprint_Node directly with the saved state instead of re-running
+    # the entire pipeline.  The pending state already contains all outputs from
+    # friction_points_node, path_classifier_node, and Quality_Control_Node.
+    from process_reimagination_agent.nodes import Blueprint_Node as _blueprint_node
+
     try:
+        def _run_blueprint() -> dict[str, Any]:
+            blueprint_output = _blueprint_node(state, settings)
+            final = {**state, **blueprint_output}
+            return final
+
         completed_state = execute_with_retry(
-            lambda: graph.invoke(state, config={"configurable": {"thread_id": thread_id}}),
+            _run_blueprint,
             settings=settings,
             on_retry=lambda attempt, exc: LOGGER.warning(
                 "resume retry thread_id=%s attempt=%s error=%s", thread_id, attempt, exc

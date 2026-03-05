@@ -1,52 +1,67 @@
-TASK: Re-Imagined Strategy Report Generation (Markdown Output Only)
+PROMPT 3 — RE-IMAGINED STRATEGY REPORT (MARKDOWN OUTPUT ONLY)
+SAP CLEAN CORE (S/4HANA) + SAP BTP SIDE-CAR + SAP JOULE/GENAI (AGENTIC)
 
 Role: Principal Enterprise AI Architect and Business Transformation Strategist.
 Mode: High reasoning.
 
 Goal
-Generate a comprehensive Re-Imagined Strategy Report for the process
-transformation. The report must be authoritative, technical, and actionable.
+Generate a comprehensive Strategy Report that re-imagines the provided process
+into a "Zero-Touch Agentic Ecosystem" using:
+- Clean Core (SAP S/4HANA as System of Record),
+- Side-Car (SAP BTP for orchestration/automation),
+- Agentic AI (SAP Joule/GenAI) only where suitability requires it.
 
-Inputs
-1) Process name and region context.
-2) Cognitive Friction Analysis table (friction points identified in Phase 1).
-3) Path Design Decisions (A/B/C classifications from Phase 2).
-4) Regional nuances and policy registry.
-5) Source evidence register from uploaded documents.
+The report must use Path A/B/C decisions as the organizing logic.
 
-Output (STRICT)
-Produce a Markdown strategy report with AT LEAST 2000 words containing these sections in order:
-1. **Executive Summary** — "One Big Move" synthesis (3-5 sentences).
-2. **Cognitive Friction Analysis** — The friction table (reproduce as-is).
-3. **Source Evidence Register** — Reference table from uploaded artifacts.
-4. **Architecture of the Future State** — Hub-and-spoke operating model with agent personas.
-5. **Technical Stack** — System of Intelligence, System of Record, integration contracts.
-6. **Integration Design Deep Dive** — Staged processing contract (intake, classification, ERP posting).
-7. **Agent Persona Reasoning Model** — Intake Scribe, Intent Analyzer, Dispute Judge boundaries.
-8. **The Trust Gap Protocol** — Shadow / Co-Pilot / Autopilot phases with confidence thresholds.
-9. **Path Design Decisions** — Bullet list of each friction point's path assignment with rationale.
-10. **Regional Policy Registry** — JSON block of regional nuances.
-11. **Delivery and Rollout Plan** — Wave 1/2/3 with KPIs, exit criteria, and governance.
-12. **Appendix: Control and Operability Baseline** — Schema validation, retries, idempotency, governance.
-13. **Executive Simplified Summary** — Exactly 3 sentences for non-technical stakeholders.
+Inputs you will receive
+1) Pain Points & Opportunities table (Prompt 1)
+2) Path Classification (A/B/C) — SAP table (Prompt 2)
+3) Source documents (As-Is + regional practices + benchmark/best practices if provided)
 
-Rules
-- Use ONLY what is supported by the provided inputs.
-- Keep Clean Core enforcement explicit: all custom logic in Side-Car, never in ERP kernel.
-- Each section must add substantive content, not repeat other sections.
+Evidence rules (STRICT)
+- Do NOT output any URLs or local file paths.
+- Every major recommendation must cite Evidence as: {{Document Name, Page/Section, short quote/paraphrase}}.
+- Do not invent technologies not present in inputs; if uncertain, state "Not specified in inputs".
+
+Output requirements (STRICT)
+- Output ONLY a Markdown document.
+- Tone: authoritative, technical, strategic. Avoid marketing fluff.
+- Length: 2000+ words unless REPORT_MODE is DEMO; if DEMO, 900-1200 words. Current REPORT_MODE: {report_mode}.
 - The report title must be: "# Re-Imagined Strategy Report: {process_name}"
-- The Appendix section heading must appear exactly once.
-- The Executive Simplified Summary must contain exactly 3 sentences.
+- Must include sections in this exact order:
+
+1) **Executive Summary** — "One Big Move"
+2) **Current Reality Synthesis**
+   - include "Hotspots" listing top 5 Item_IDs with evidence
+3) **Strategy: Layered Re-Imagination using Path A/B/C**
+   - Path A: SAP S/4HANA Core Standardization (Foundation)
+   - Path B: SAP BTP Platform Enhancements / Deterministic Automation (Bridge)
+   - Path C: SAP Joule/GenAI Agentic AI Deployment (Game Changer)
+4) **Architecture of the Future State**
+   - Hub-and-Spoke operating model
+   - Define at least 3 Agent Personas with: responsibilities, inputs, decisions, outputs, and escalation triggers
+5) **Technical Stack**
+   - System of Record: SAP S/4HANA
+   - Side-Car: SAP BTP orchestration/automation
+   - Agentic: SAP Joule/GenAI
+6) **The Trust Gap Protocol**
+   - Shadow -> Co-Pilot -> Autopilot operationalization
+7) **Risks, Guardrails, and Open Questions**
+
+Additional rules
+- Use ONLY what is supported by the provided inputs.
+- Keep Clean Core enforcement explicit: all custom logic in Side-Car, never embedded in the ERP kernel.
+- Each section must add substantive content, not repeat other sections.
 
 Begin
-Read the inputs and generate the strategy report in Markdown.
+Write the Strategy Report now, grounded in the tables and source documents with citations as specified.
 
 === PROCESS CONTEXT ===
 Process: {process_name}
 Region: {context_region}
 Trust Gap Phase: {trust_gap_phase}
 
-=== COGNITIVE FRICTION TABLE ===
+=== PAIN POINTS & OPPORTUNITIES TABLE ===
 {friction_table}
 
 === PATH DESIGN DECISIONS ===
