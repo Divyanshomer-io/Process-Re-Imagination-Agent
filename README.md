@@ -174,16 +174,6 @@ python -m process_reimagination_agent resume `
   --approver "<you>"
 ```
 
-## Common Troubleshooting
-
-### `No LLM backend is configured`
-
-Set at least one backend in `.env` (`DAIA_*`, `AZURE_OPENAI_*`, or `OPENAI_API_KEY`).
-
-### `All configured LLM backends failed` (DAIA DNS/network)
-
-If host resolution fails for `daia.privatelink.azurewebsites.net`, connect to the required internal network/VPN.
-
 ### `CERTIFICATE_VERIFY_FAILED` with DAIA
 
 Set a valid CA bundle path:
