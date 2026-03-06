@@ -6,3 +6,17 @@ outputs/
 .env
 .env.*
 certs/
+
+# Backend
+backend/.venv/
+backend/outputs/
+backend/uploads/
+backend/__pycache__/
+
+# Frontend
+frontend/node_modules/
+frontend/.vite/
+
+# IDE
+.cursor/
+.vscode/
