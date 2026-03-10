@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from statistics import mean
-from typing import Any
+from typing import Any, Callable, TypeVar
 from xml.sax.saxutils import escape
 
 from process_reimagination_agent.config import Settings
@@ -74,6 +75,56 @@ _MAX_DOCUMENT_CHARS = 24000
 _MAX_TOKENS_ANALYSIS = 16384
 _MAX_TOKENS_BLUEPRINT = 16384
 _MAX_TOKENS_USE_CASE_CARDS = 16384
+
+_LLM_PARSE_MAX_RETRIES = 3
+_LLM_PARSE_RETRY_BACKOFF = 2
+
+_T = TypeVar("_T")
+
+
+def _call_llm_with_parse_retry(
+    prompt: str,
+    settings: Settings,
+    parse_fn: Callable[[str], _T | None],
+    *,
+    system_message: str | None = None,
+    max_tokens: int | None = None,
+    max_retries: int = _LLM_PARSE_MAX_RETRIES,
+    node_label: str = "Node",
+) -> tuple[_T, str]:
+    """Call the LLM and parse the response, retrying with correction hints on parse failure.
+
+    Returns a tuple of (parsed_result, raw_llm_response).
+    Raises RuntimeError after all retries are exhausted.
+    """
+    current_prompt = prompt
+    last_raw = ""
+    for attempt in range(1, max_retries + 1):
+        raw = call_llm(current_prompt, settings, system_message=system_message, max_tokens=max_tokens)
+        last_raw = raw
+        parsed = parse_fn(raw)
+        if parsed:
+            if attempt > 1:
+                print(f"[{node_label}] LLM parse succeeded on retry attempt {attempt}")
+            return parsed, raw
+
+        print(f"[{node_label}] LLM parse failed (attempt {attempt}/{max_retries})")
+        _logger.warning("%s: LLM parse failed (attempt %d/%d)", node_label, attempt, max_retries)
+
+        if attempt < max_retries:
+            correction = (
+                f"\n\n=== CORRECTION (attempt {attempt} failed) ===\n"
+                f"Your previous response could not be parsed into the required structured format. "
+                f"Please re-read the formatting instructions above carefully and try again. "
+                f"Return ONLY the requested structured output (table or JSON) with no extra prose."
+            )
+            current_prompt = prompt + correction
+            time.sleep(_LLM_PARSE_RETRY_BACKOFF * attempt)
+
+    raise RuntimeError(
+        f"[{node_label}] All {max_retries} LLM parse attempts failed. "
+        f"Last raw response ({len(last_raw)} chars): {last_raw[:200]}..."
+    )
 
 
 def _compact_text(text: str, max_len: int = 180) -> str:
@@ -553,7 +604,10 @@ def _friction_items_from_state(state: dict[str, Any]) -> list[FrictionItem]:
             continue
     if items:
         return items
-    return _fallback_friction_from_pain_points(state.get("pain_points", []), "")
+    raise ValueError(
+        "No valid friction items found in agent state. "
+        "The upstream friction_points_node must produce LLM-generated friction items before downstream nodes can run."
+    )
 
 
 def _classify_path(item: FrictionItem) -> str:
@@ -666,27 +720,30 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
 
     regional_nuances = detect_regional_nuances(combined_text=combined_text, context_region=manifest.context_region)
 
-    # --- LLM-powered friction analysis (required) ---
-    llm_frictions: list[FrictionItem] = []
+    # --- LLM-powered friction analysis (required, with retry on parse failure) ---
+    llm_prompt = friction_prompt
     if combined_text.strip():
         llm_prompt = friction_prompt + "\n\n=== DOCUMENT TEXT ===\n" + combined_text[:_MAX_DOCUMENT_CHARS]
-        print("[friction_points_node] Calling LLM for friction analysis...")
-        _logger.info("friction_points_node: calling LLM for friction analysis (%d chars of document text)...", min(len(combined_text), _MAX_DOCUMENT_CHARS))
-        llm_response = call_llm(
-            llm_prompt,
-            settings,
-            system_message=_SYSTEM_MESSAGE_ANALYST,
-            max_tokens=_MAX_TOKENS_ANALYSIS,
-        )
-        print(f"[friction_points_node] LLM response received ({len(llm_response)} chars)")
-        _logger.info("friction_points_node: LLM response received (%d chars)", len(llm_response))
-        llm_frictions = _parse_llm_friction_table(llm_response, manifest.context_region)
-        if llm_frictions:
-            _logger.info("friction_points_node: LLM produced %d friction items", len(llm_frictions))
-        else:
-            _logger.warning("friction_points_node: LLM returned response but parsing failed, supplementing with deterministic")
 
-    # --- Deterministic supplements (graph-derived and pattern-based) ---
+    print("[friction_points_node] Calling LLM for friction analysis...")
+    _logger.info("friction_points_node: calling LLM for friction analysis (%d chars of document text)...", min(len(combined_text), _MAX_DOCUMENT_CHARS))
+
+    def _parse_friction(raw: str) -> list[FrictionItem] | None:
+        items = _parse_llm_friction_table(raw, manifest.context_region)
+        return items if items else None
+
+    llm_frictions, _ = _call_llm_with_parse_retry(
+        llm_prompt,
+        settings,
+        _parse_friction,
+        system_message=_SYSTEM_MESSAGE_ANALYST,
+        max_tokens=_MAX_TOKENS_ANALYSIS,
+        node_label="friction_points_node",
+    )
+    print(f"[friction_points_node] USING LLM OUTPUT: {len(llm_frictions)} friction items from LLM")
+    _logger.info("friction_points_node: LLM produced %d friction items", len(llm_frictions))
+
+    # --- Deterministic supplements (graph-derived and pattern-based, merged into LLM output) ---
     derived_frictions = _derive_document_friction_items(
         raw_inputs=raw_inputs,
         combined_text=combined_text,
@@ -695,15 +752,9 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
     graph_derived_frictions = _derive_graph_friction_items(raw_inputs, manifest.context_region)
     deterministic_supplements = _merge_friction_items(graph_derived_frictions, derived_frictions)
 
-    # --- Merge: LLM items are primary, deterministic fills structural gaps ---
-    if llm_frictions:
-        frictions = _merge_friction_items(llm_frictions, deterministic_supplements)
-        print(f"[friction_points_node] USING LLM OUTPUT: {len(llm_frictions)} LLM items + {len(deterministic_supplements)} deterministic supplements")
-        _logger.info("friction_points_node: using LLM-driven analysis with deterministic supplement")
-    else:
-        frictions = deterministic_supplements if deterministic_supplements else _fallback_friction_from_pain_points(manifest.pain_points, combined_text)
-        print(f"[friction_points_node] WARNING: LLM parsing failed, using {len(frictions)} deterministic items as fallback")
-        _logger.warning("friction_points_node: LLM friction parsing failed; using deterministic as safety net")
+    frictions = _merge_friction_items(llm_frictions, deterministic_supplements)
+    print(f"[friction_points_node] Final: {len(llm_frictions)} LLM items + {len(deterministic_supplements)} deterministic supplements")
+    _logger.info("friction_points_node: using LLM-driven analysis with deterministic supplement")
 
     for idx, item in enumerate(frictions, start=1):
         item.friction_id = f"P-{idx:03d}"
@@ -829,37 +880,23 @@ def Input_Refiner_Node(state: dict[str, Any], settings: Settings) -> dict[str, A
     friction_logs = state.get("cognitive_friction_logs", [])
     evidence_refs = list(state.get("evidence_references", []))
 
-    # --- LLM-powered refinement (required) ---
+    # --- LLM-powered refinement (required, with retry on parse failure) ---
     rendered_prompt = render_input_refiner_prompt(friction_logs, feedback, evidence_refs)
     print(f"[Input_Refiner_Node] Calling LLM for refinement (pass {iteration})...")
-    llm_response = call_llm(
+
+    def _parse_refined(raw: str) -> list[dict[str, Any]] | None:
+        return _parse_llm_refined_items(raw, friction_items)
+
+    refined_logs, _ = _call_llm_with_parse_retry(
         rendered_prompt,
         settings,
+        _parse_refined,
         system_message=_SYSTEM_MESSAGE_ANALYST,
         max_tokens=_MAX_TOKENS_ANALYSIS,
+        node_label="Input_Refiner_Node",
     )
-    print(f"[Input_Refiner_Node] LLM response received ({len(llm_response)} chars)")
-    llm_refined = _parse_llm_refined_items(llm_response, friction_items)
-    if llm_refined:
-        refined_logs = llm_refined
-        print(f"[Input_Refiner_Node] USING LLM OUTPUT: {len(llm_refined)} refined items (pass {iteration})")
-        _logger.info("Input_Refiner_Node: LLM-refined friction items (pass %d)", iteration)
-    else:
-        print(f"[Input_Refiner_Node] WARNING: LLM parsing failed (pass {iteration}), using structured fallback")
-        _logger.warning(
-            "Input_Refiner_Node: LLM response received but parsing failed (pass %d), "
-            "applying structured refinement to preserve LLM intent",
-            iteration,
-        )
-        refined_logs = []
-        for item in friction_items:
-            payload = item.model_dump()
-            if not payload.get("source_evidence"):
-                payload["source_evidence"] = "Refined using quality feedback and source documents"
-            payload["rationale"] = (
-                f"{payload['rationale']} Refinement pass {iteration} validated against Clean Core and Side-Car policies."
-            )
-            refined_logs.append(payload)
+    print(f"[Input_Refiner_Node] USING LLM OUTPUT: {len(refined_logs)} refined items (pass {iteration})")
+    _logger.info("Input_Refiner_Node: LLM-refined friction items (pass %d)", iteration)
 
     phase_status = dict(state.get("phase_status", {}))
     phase_status["phase_1_current_reality_synthesis"] = "completed"
@@ -1043,30 +1080,24 @@ def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str,
 
     print(f"[path_classifier_node] Calling LLM for path classification ({len(friction_items)} friction items)...")
     _logger.info("path_classifier_node: calling LLM for path classification (%d friction items)...", len(friction_items))
-    llm_response = call_llm(
+
+    def _parse_classifications(raw: str) -> list[dict[str, Any]] | None:
+        return _parse_llm_classifications(raw, friction_items)
+
+    llm_classifications, _ = _call_llm_with_parse_retry(
         rendered_prompt,
         settings,
+        _parse_classifications,
         system_message=_SYSTEM_MESSAGE_ANALYST,
         max_tokens=_MAX_TOKENS_ANALYSIS,
+        node_label="path_classifier_node",
     )
-    print(f"[path_classifier_node] LLM response received ({len(llm_response)} chars)")
-    _logger.info("path_classifier_node: LLM response received (%d chars)", len(llm_response))
-    llm_classifications = _parse_llm_classifications(llm_response, friction_items)
-
-    if llm_classifications:
-        print(f"[path_classifier_node] USING LLM OUTPUT: {len(llm_classifications)} classifications parsed successfully")
-        _logger.info("path_classifier_node: using LLM-driven classification")
-    else:
-        print("[path_classifier_node] WARNING: LLM parsing failed, using deterministic classification")
-        _logger.warning(
-            "path_classifier_node: LLM response received but parsing failed, "
-            "applying deterministic classification with guardrails"
-        )
+    print(f"[path_classifier_node] USING LLM OUTPUT: {len(llm_classifications)} classifications parsed successfully")
+    _logger.info("path_classifier_node: using LLM-driven classification")
 
     llm_map: dict[str, dict[str, Any]] = {}
-    if llm_classifications:
-        for entry in llm_classifications:
-            llm_map[entry["friction_id"]] = entry
+    for entry in llm_classifications:
+        llm_map[entry["friction_id"]] = entry
 
     path_decisions: list[dict[str, Any]] = []
     for item in friction_items:
@@ -1080,9 +1111,9 @@ def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str,
                 "Classified via mandatory Phase 2 suitability assessment."
             )
         else:
-            path = _apply_guardrail(_classify_path(item), item)
-            confidence = _decision_confidence(item, iteration_count=iteration, evidence_penalty=evidence_penalty)
-            rationale = f"{item.rationale} Classified via mandatory Phase 2 suitability assessment."
+            path = _apply_guardrail(item.proposed_path or "B", item)
+            confidence = 0.90
+            rationale = f"{item.rationale} Classified via LLM friction analysis proposed_path (item not matched in classification response)."
 
         decision = PathDecision(
             current_manual_action=item.current_manual_action,
@@ -1984,10 +2015,9 @@ def _extract_process_blueprint_xml(raw_response: str) -> str | None:
 
 
 def _generate_use_case_cards(state: dict[str, Any], settings: Settings, strategy_report: str) -> str | None:
-    """Call the LLM with Prompt 4 to generate Use Case Cards JSON.
+    """Call the LLM with Prompt 4 to generate Use Case Cards JSON, with retries.
 
-    Returns the validated JSON string, or None if the LLM call fails or
-    the response does not pass validation.
+    Returns the validated JSON string, or None only after all retries are exhausted.
     """
     ucc_prompt = render_use_case_cards_prompt(
         process_name=state.get("process_name", "Process"),
@@ -1997,49 +2027,62 @@ def _generate_use_case_cards(state: dict[str, Any], settings: Settings, strategy
         strategy_report=strategy_report,
     )
 
-    print("[Blueprint_Node] Calling LLM for use case cards (JSON) generation...")
-    _logger.info("Blueprint_Node: calling LLM for use case cards (Prompt 4)...")
+    current_prompt = ucc_prompt
+    for attempt in range(1, _LLM_PARSE_MAX_RETRIES + 1):
+        print(f"[Blueprint_Node] Calling LLM for use case cards (attempt {attempt})...")
+        _logger.info("Blueprint_Node: calling LLM for use case cards (Prompt 4, attempt %d)...", attempt)
 
-    try:
-        llm_response = call_llm(
-            ucc_prompt,
-            settings,
-            system_message=_SYSTEM_MESSAGE_USE_CASE_CARDS,
-            max_tokens=_MAX_TOKENS_USE_CASE_CARDS,
-        )
-    except Exception as exc:
-        _logger.warning("Blueprint_Node: LLM call for use case cards failed: %s", exc)
-        print(f"[Blueprint_Node] LLM call for use case cards failed: {exc}")
-        return None
+        try:
+            llm_response = call_llm(
+                current_prompt,
+                settings,
+                system_message=_SYSTEM_MESSAGE_USE_CASE_CARDS,
+                max_tokens=_MAX_TOKENS_USE_CASE_CARDS,
+            )
+        except Exception as exc:
+            _logger.warning("Blueprint_Node: LLM call for use case cards failed (attempt %d): %s", attempt, exc)
+            print(f"[Blueprint_Node] LLM call for use case cards failed (attempt {attempt}): {exc}")
+            if attempt < _LLM_PARSE_MAX_RETRIES:
+                time.sleep(_LLM_PARSE_RETRY_BACKOFF * attempt)
+            continue
 
-    print(f"[Blueprint_Node] Use case cards LLM response received ({len(llm_response)} chars)")
-    _logger.info("Blueprint_Node: use case cards LLM response received (%d chars)", len(llm_response))
+        print(f"[Blueprint_Node] Use case cards LLM response received ({len(llm_response)} chars)")
 
-    cleaned = llm_response.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        if lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        cleaned = "\n".join(lines).strip()
+        cleaned = llm_response.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
 
-    try:
-        validate_use_case_cards_json(cleaned)
-        print("[Blueprint_Node] USING LLM-GENERATED USE CASE CARDS (validated)")
-        _logger.info("Blueprint_Node: LLM-generated use case cards passed validation")
-        return cleaned
-    except ValueError as exc:
-        _logger.warning("Blueprint_Node: LLM use case cards failed validation: %s", exc)
-        print(f"[Blueprint_Node] LLM use case cards failed validation: {exc}")
-        return None
+        try:
+            validate_use_case_cards_json(cleaned)
+            print(f"[Blueprint_Node] USING LLM-GENERATED USE CASE CARDS (validated, attempt {attempt})")
+            _logger.info("Blueprint_Node: LLM-generated use case cards passed validation (attempt %d)", attempt)
+            return cleaned
+        except ValueError as exc:
+            _logger.warning("Blueprint_Node: LLM use case cards failed validation (attempt %d): %s", attempt, exc)
+            print(f"[Blueprint_Node] LLM use case cards failed validation (attempt {attempt}): {exc}")
+            correction = (
+                f"\n\n=== CORRECTION (attempt {attempt} failed: {exc}) ===\n"
+                f"Your previous JSON output failed validation. Return ONLY a valid JSON array "
+                f"of use case card objects. No markdown fences, no prose, no explanation."
+            )
+            current_prompt = ucc_prompt + correction
+            if attempt < _LLM_PARSE_MAX_RETRIES:
+                time.sleep(_LLM_PARSE_RETRY_BACKOFF * attempt)
+
+    _logger.warning("Blueprint_Node: all %d use case card attempts failed", _LLM_PARSE_MAX_RETRIES)
+    print(f"[Blueprint_Node] All {_LLM_PARSE_MAX_RETRIES} use case card attempts failed")
+    return None
 
 
 def _generate_llm_process_blueprint(state: dict[str, Any], settings: Settings, strategy_report: str) -> str | None:
-    """Call the LLM with Prompt 5 to generate the ProcessBlueprint XML + Mermaid diagram.
+    """Call the LLM with Prompt 5 to generate the ProcessBlueprint XML + Mermaid diagram, with retries.
 
-    Returns the validated XML string, or None if the LLM call fails or
-    the response does not pass validation.
+    Returns the validated XML string, or None only after all retries are exhausted.
     """
     blueprint_prompt = render_process_blueprint_prompt(
         process_name=state.get("process_name", "Process"),
@@ -2051,39 +2094,63 @@ def _generate_llm_process_blueprint(state: dict[str, Any], settings: Settings, s
         run_layout=state.get("run_layout", "LR"),
     )
 
-    print("[Blueprint_Node] Calling LLM for process blueprint (XML + Mermaid) generation...")
-    _logger.info("Blueprint_Node: calling LLM for process blueprint (Prompt 5)...")
+    current_prompt = blueprint_prompt
+    for attempt in range(1, _LLM_PARSE_MAX_RETRIES + 1):
+        print(f"[Blueprint_Node] Calling LLM for process blueprint (attempt {attempt})...")
+        _logger.info("Blueprint_Node: calling LLM for process blueprint (Prompt 5, attempt %d)...", attempt)
 
-    try:
-        llm_blueprint_response = call_llm(
-            blueprint_prompt,
-            settings,
-            system_message=_SYSTEM_MESSAGE_PROCESS_BLUEPRINT,
-            max_tokens=_MAX_TOKENS_BLUEPRINT,
-        )
-    except Exception as exc:
-        _logger.warning("Blueprint_Node: LLM call for process blueprint failed: %s", exc)
-        print(f"[Blueprint_Node] LLM call for process blueprint failed: {exc}")
-        return None
+        try:
+            llm_blueprint_response = call_llm(
+                current_prompt,
+                settings,
+                system_message=_SYSTEM_MESSAGE_PROCESS_BLUEPRINT,
+                max_tokens=_MAX_TOKENS_BLUEPRINT,
+            )
+        except Exception as exc:
+            _logger.warning("Blueprint_Node: LLM call for process blueprint failed (attempt %d): %s", attempt, exc)
+            print(f"[Blueprint_Node] LLM call for process blueprint failed (attempt {attempt}): {exc}")
+            if attempt < _LLM_PARSE_MAX_RETRIES:
+                time.sleep(_LLM_PARSE_RETRY_BACKOFF * attempt)
+            continue
 
-    print(f"[Blueprint_Node] Process blueprint LLM response received ({len(llm_blueprint_response)} chars)")
-    _logger.info("Blueprint_Node: process blueprint LLM response received (%d chars)", len(llm_blueprint_response))
+        print(f"[Blueprint_Node] Process blueprint LLM response received ({len(llm_blueprint_response)} chars)")
 
-    extracted = _extract_process_blueprint_xml(llm_blueprint_response)
-    if not extracted:
-        _logger.warning("Blueprint_Node: could not extract ProcessBlueprint XML from LLM response")
-        print("[Blueprint_Node] WARNING: could not extract ProcessBlueprint XML from LLM response")
-        return None
+        extracted = _extract_process_blueprint_xml(llm_blueprint_response)
+        if not extracted:
+            _logger.warning("Blueprint_Node: could not extract ProcessBlueprint XML (attempt %d)", attempt)
+            print(f"[Blueprint_Node] Could not extract ProcessBlueprint XML (attempt {attempt})")
+            correction = (
+                f"\n\n=== CORRECTION (attempt {attempt}: no valid XML found) ===\n"
+                f"Your previous response did not contain a valid <ProcessBlueprint> XML block. "
+                f"Please output a single XML block starting with <ProcessBlueprint> and ending with "
+                f"</ProcessBlueprint>, containing a <MermaidData><![CDATA[ ... ]]></MermaidData> section "
+                f"with valid Mermaid.js flowchart code."
+            )
+            current_prompt = blueprint_prompt + correction
+            if attempt < _LLM_PARSE_MAX_RETRIES:
+                time.sleep(_LLM_PARSE_RETRY_BACKOFF * attempt)
+            continue
 
-    try:
-        validate_process_blueprint_xml(extracted)
-        print("[Blueprint_Node] USING LLM-GENERATED PROCESS BLUEPRINT (validated)")
-        _logger.info("Blueprint_Node: LLM-generated process blueprint passed validation")
-        return extracted
-    except ValueError as exc:
-        _logger.warning("Blueprint_Node: LLM process blueprint failed validation: %s", exc)
-        print(f"[Blueprint_Node] LLM process blueprint failed validation: {exc}")
-        return None
+        try:
+            validate_process_blueprint_xml(extracted)
+            print(f"[Blueprint_Node] USING LLM-GENERATED PROCESS BLUEPRINT (validated, attempt {attempt})")
+            _logger.info("Blueprint_Node: LLM-generated process blueprint passed validation (attempt %d)", attempt)
+            return extracted
+        except ValueError as exc:
+            _logger.warning("Blueprint_Node: LLM process blueprint failed validation (attempt %d): %s", attempt, exc)
+            print(f"[Blueprint_Node] LLM process blueprint failed validation (attempt {attempt}): {exc}")
+            correction = (
+                f"\n\n=== CORRECTION (attempt {attempt} failed validation: {exc}) ===\n"
+                f"Your previous ProcessBlueprint XML failed validation. Please ensure the XML contains "
+                f"valid Mermaid.js flowchart code inside <MermaidData><![CDATA[ ... ]]></MermaidData>."
+            )
+            current_prompt = blueprint_prompt + correction
+            if attempt < _LLM_PARSE_MAX_RETRIES:
+                time.sleep(_LLM_PARSE_RETRY_BACKOFF * attempt)
+
+    _logger.warning("Blueprint_Node: all %d process blueprint attempts failed", _LLM_PARSE_MAX_RETRIES)
+    print(f"[Blueprint_Node] All {_LLM_PARSE_MAX_RETRIES} process blueprint attempts failed")
+    return None
 
 
 def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
@@ -2095,7 +2162,7 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
             "Set manual_approval=true only after human checkpoint review."
         )
 
-    # --- LLM-powered strategy report (required) ---
+    # --- LLM-powered strategy report (required, with retry on failure) ---
     effective_min_words = 900 if settings.report_mode == "DEMO" else settings.min_report_words
     bp_prompt = render_blueprint_prompt(
         process_name=state.get("process_name", "Process"),
@@ -2107,61 +2174,84 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
         evidence_references=state.get("evidence_references", []),
         report_mode=settings.report_mode,
     )
-    print("[Blueprint_Node] Calling LLM for strategy report generation...")
-    _logger.info("Blueprint_Node: calling LLM for strategy report generation (mode=%s)...", settings.report_mode)
-    llm_response = call_llm(
-        bp_prompt,
-        settings,
-        system_message=_SYSTEM_MESSAGE_BLUEPRINT,
-        max_tokens=_MAX_TOKENS_BLUEPRINT,
-    )
-    print(f"[Blueprint_Node] LLM response received ({len(llm_response)} chars, ~{len(llm_response.split())} words)")
-    _logger.info("Blueprint_Node: LLM response received (%d chars, ~%d words)", len(llm_response), len(llm_response.split()))
 
-    llm_word_count = count_words(llm_response)
-    print(f"[Blueprint_Node] LLM returned {llm_word_count} words")
-    _logger.info("Blueprint_Node: LLM returned %d words (threshold: %d)", llm_word_count, effective_min_words)
-
-    strategy_report: str
-    if llm_word_count >= effective_min_words:
-        patched = _patch_llm_report(llm_response, state, settings)
-        try:
-            validate_strategy_report(patched, min_words=effective_min_words)
-            strategy_report = patched
-            print("[Blueprint_Node] USING LLM-GENERATED REPORT (patched to pass validation)")
-            _logger.info("Blueprint_Node: using LLM-generated strategy report (%d words)", count_words(patched))
-        except Exception as exc:
-            _logger.warning("Blueprint_Node: LLM report failed validation even after patching (%s), falling back to template", exc)
-            print(f"[Blueprint_Node] LLM report failed validation: {exc} -- using template")
-            strategy_report = _build_strategy_report(state, settings)
-    else:
-        _logger.warning(
-            "Blueprint_Node: LLM response too short (%d words < %d required), using template",
-            llm_word_count, effective_min_words,
+    strategy_report = ""
+    current_bp_prompt = bp_prompt
+    for report_attempt in range(1, _LLM_PARSE_MAX_RETRIES + 1):
+        print(f"[Blueprint_Node] Calling LLM for strategy report generation (attempt {report_attempt})...")
+        _logger.info("Blueprint_Node: calling LLM for strategy report (attempt %d, mode=%s)...", report_attempt, settings.report_mode)
+        llm_response = call_llm(
+            current_bp_prompt,
+            settings,
+            system_message=_SYSTEM_MESSAGE_BLUEPRINT,
+            max_tokens=_MAX_TOKENS_BLUEPRINT,
         )
-        print(f"[Blueprint_Node] LLM response too short ({llm_word_count} words), using template")
-        strategy_report = _build_strategy_report(state, settings)
+        print(f"[Blueprint_Node] LLM response received ({len(llm_response)} chars, ~{len(llm_response.split())} words)")
+        _logger.info("Blueprint_Node: LLM response received (%d chars, ~%d words)", len(llm_response), len(llm_response.split()))
 
-    # --- LLM-powered use case cards (Prompt 4: JSON) ---
+        llm_word_count = count_words(llm_response)
+        print(f"[Blueprint_Node] LLM returned {llm_word_count} words (threshold: {effective_min_words})")
+
+        patched = _patch_llm_report(llm_response, state, settings)
+        patched_word_count = count_words(patched)
+
+        if patched_word_count >= effective_min_words:
+            try:
+                validate_strategy_report(patched, min_words=effective_min_words)
+                strategy_report = patched
+                print(f"[Blueprint_Node] USING LLM-GENERATED REPORT ({patched_word_count} words, attempt {report_attempt})")
+                _logger.info("Blueprint_Node: using LLM-generated strategy report (%d words)", patched_word_count)
+                break
+            except Exception as exc:
+                _logger.warning("Blueprint_Node: LLM report failed validation (attempt %d): %s", report_attempt, exc)
+                print(f"[Blueprint_Node] LLM report failed validation (attempt {report_attempt}): {exc}")
+                correction = (
+                    f"\n\n=== CORRECTION (attempt {report_attempt} failed validation: {exc}) ===\n"
+                    f"Your previous report failed validation. Please ensure all required sections are present "
+                    f"and the report has at least {effective_min_words} words. Include these mandatory sections: "
+                    f"Executive Summary, Current Reality Synthesis, Strategy: Layered Re-Imagination using Path A/B/C, "
+                    f"Architecture of the Future State, Technical Stack, The Trust Gap Protocol, "
+                    f"Risks Guardrails and Open Questions. Include the phrase 'never embedded in the ERP kernel'."
+                )
+                current_bp_prompt = bp_prompt + correction
+        else:
+            _logger.warning("Blueprint_Node: LLM response too short (attempt %d): %d words < %d required", report_attempt, patched_word_count, effective_min_words)
+            print(f"[Blueprint_Node] LLM response too short (attempt {report_attempt}): {patched_word_count} words < {effective_min_words}")
+            correction = (
+                f"\n\n=== CORRECTION (attempt {report_attempt}: only {patched_word_count} words) ===\n"
+                f"Your previous response was too short ({patched_word_count} words). "
+                f"The report MUST contain at least {effective_min_words} words. "
+                f"Please produce a comprehensive, detailed strategy report with all required sections fully elaborated."
+            )
+            current_bp_prompt = bp_prompt + correction
+
+        if report_attempt < _LLM_PARSE_MAX_RETRIES:
+            time.sleep(_LLM_PARSE_RETRY_BACKOFF * report_attempt)
+
+    if not strategy_report:
+        raise RuntimeError(
+            f"[Blueprint_Node] All {_LLM_PARSE_MAX_RETRIES} strategy report LLM attempts failed. "
+            f"Last response had {count_words(llm_response)} words (needed {effective_min_words})."
+        )
+
+    # --- LLM-powered use case cards (Prompt 4: JSON, with retries) ---
     use_case_cards_json = _generate_use_case_cards(state, settings, strategy_report)
     if use_case_cards_json:
         print("[Blueprint_Node] LLM-generated use case cards will be included in output")
     else:
-        print("[Blueprint_Node] Use case cards generation failed or was skipped")
+        print("[Blueprint_Node] Use case cards generation exhausted retries — omitted from output")
 
-    # --- LLM-powered process blueprint (Prompt 5: XML + Mermaid) ---
-    # Pass use case cards to the process blueprint prompt if available
+    # --- LLM-powered process blueprint (Prompt 5: XML + Mermaid, with retries) ---
     state_with_cards = dict(state)
     if use_case_cards_json:
         state_with_cards["use_case_cards"] = use_case_cards_json
-    process_blueprint_xml = _generate_llm_process_blueprint(state_with_cards, settings, strategy_report)
-    if process_blueprint_xml:
-        print("[Blueprint_Node] LLM-generated process blueprint will be included in output")
-    else:
-        print("[Blueprint_Node] Using hardcoded visual architecture as fallback for process blueprint")
-
-    # Hardcoded visual architecture always serves as the validated mermaid_xml baseline
-    mermaid_xml = _build_visual_architecture_xml(state)
+    mermaid_xml = _generate_llm_process_blueprint(state_with_cards, settings, strategy_report)
+    if not mermaid_xml:
+        raise RuntimeError(
+            "[Blueprint_Node] All LLM attempts for process blueprint (mermaid_xml) failed. "
+            "Cannot produce required visual architecture output."
+        )
+    print("[Blueprint_Node] USING LLM-GENERATED PROCESS BLUEPRINT as mermaid_xml")
 
     validate_strategy_report(strategy_report, min_words=effective_min_words)
     validate_mermaid_xml(mermaid_xml)
@@ -2183,8 +2273,7 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
         result["use_case_cards_json"] = use_case_cards_json
         result["refined_blueprint"]["use_case_cards_json"] = use_case_cards_json
 
-    if process_blueprint_xml:
-        result["process_blueprint_xml"] = process_blueprint_xml
-        result["refined_blueprint"]["process_blueprint_xml"] = process_blueprint_xml
+    result["process_blueprint_xml"] = mermaid_xml
+    result["refined_blueprint"]["process_blueprint_xml"] = mermaid_xml
 
     return result
