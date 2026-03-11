@@ -55,6 +55,9 @@ def transform_friction_logs(
             manualAction=log.get("current_manual_action", ""),
             whereInProcess=log.get("where_in_process", "Not specified"),
             region=log.get("region_impacted", "Global"),
+            whyItMatters=log.get("why_its_friction", ""),
+            evidenceText=log.get("source_evidence", ""),
+            openQuestions=log.get("open_questions", ""),
             evidenceCount=len(evidence_files),
             relatedPainPoints=related_pain,
             evidence=evidence_files,
@@ -105,6 +108,15 @@ def transform_blueprint(state: dict[str, Any]) -> BlueprintResponse:
         legacy = re.search(r"<Diagram[^>]*><!\[CDATA\[(.*?)\]\]></Diagram>", xml, re.S)
         if legacy:
             mermaid_code = legacy.group(1).strip()
+        elif "<Diagram" in xml:
+            try:
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(xml)
+                diagram_el = root.find("Diagram")
+                if diagram_el is not None and diagram_el.text:
+                    mermaid_code = diagram_el.text.strip()
+            except Exception:
+                pass
 
     svg = ""
     render_artifact = state.get("render_artifact", {})

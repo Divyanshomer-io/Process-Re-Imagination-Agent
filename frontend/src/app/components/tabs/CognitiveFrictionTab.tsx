@@ -13,9 +13,16 @@ export function CognitiveFrictionTab() {
   const [evidenceFilter, setEvidenceFilter] = useState("all");
   const [selectedFriction, setSelectedFriction] = useState<typeof mockFrictionData[0] | null>(null);
 
-  const filteredData = (frictionData.length > 0 ? frictionData : mockFrictionData).filter(item => {
-    const matchesSearch = item.manualAction.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.id.toLowerCase().includes(searchTerm.toLowerCase());
+  const sourceData = frictionData.length > 0 ? frictionData : mockFrictionData;
+
+  const regions = Array.from(new Set(sourceData.map((d) => d.region))).sort();
+
+  const filteredData = sourceData.filter(item => {
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = !term ||
+      item.manualAction.toLowerCase().includes(term) ||
+      item.id.toLowerCase().includes(term) ||
+      (item.whyItMatters ?? "").toLowerCase().includes(term);
     const matchesRegion = regionFilter === "all" || item.region === regionFilter;
     const matchesEvidence = evidenceFilter === "all" ||
                             (evidenceFilter === "yes" && item.evidenceCount > 0) ||
@@ -28,13 +35,13 @@ export function CognitiveFrictionTab() {
     if (path === "B") return "pathB";
     return "pathC";
   };
-  
+
   const pathIcon = (path: string) => {
     if (path === "A") return <Database className="h-4 w-4" />;
     if (path === "B") return <Zap className="h-4 w-4" />;
     return <Brain className="h-4 w-4" />;
   };
-  
+
   const pathDescription = (path: string) => {
     if (path === "A") return "Core Standardization";
     if (path === "B") return "Platform Automation";
@@ -59,9 +66,9 @@ export function CognitiveFrictionTab() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Regions</SelectItem>
-            <SelectItem value="North America">North America</SelectItem>
-            <SelectItem value="Europe">Europe</SelectItem>
-            <SelectItem value="All Regions">All Regions</SelectItem>
+            {regions.map((r) => (
+              <SelectItem key={r} value={r}>{r}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select value={evidenceFilter} onValueChange={setEvidenceFilter}>
@@ -77,16 +84,26 @@ export function CognitiveFrictionTab() {
       </div>
 
       {filteredData.length > 0 ? (
-        <div className="border border-border rounded-[var(--radius)] overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted">
+        <div className="border border-border rounded-[var(--radius)] overflow-auto">
+          <table className="w-full border-collapse" style={{ tableLayout: "fixed", minWidth: 1100 }}>
+            <colgroup>
+              <col style={{ width: "7%" }} />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "13%" }} />
+            </colgroup>
+            <thead className="bg-muted sticky top-0 z-10">
               <tr>
-                <th className="text-left px-4 py-3 font-semibold">Friction ID</th>
-                <th className="text-left px-4 py-3 font-semibold">Current Manual Action</th>
-                <th className="text-left px-4 py-3 font-semibold">Where in Process</th>
-                <th className="text-left px-4 py-3 font-semibold">Region Impacted</th>
-                <th className="text-left px-4 py-3 font-semibold">Evidence</th>
-                <th className="text-left px-4 py-3 font-semibold">Path</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Friction ID</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Manual Action</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Where in Process</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Region Impacted</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Why It Matters</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Open Questions</th>
               </tr>
             </thead>
             <tbody>
@@ -99,16 +116,13 @@ export function CognitiveFrictionTab() {
                     borderLeft: `4px solid var(--path-${item.pathClassification.toLowerCase()})`
                   }}
                 >
-                  <td className="px-4 py-3 font-semibold">{item.id}</td>
-                  <td className="px-4 py-3">{item.manualAction}</td>
-                  <td className="px-4 py-3">{item.whereInProcess}</td>
-                  <td className="px-4 py-3">{item.region}</td>
-                  <td className="px-4 py-3">{item.evidenceCount}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={pathBadgeVariant(item.pathClassification)} className="text-sm px-3 py-1">
-                      Path {item.pathClassification}
-                    </Badge>
-                  </td>
+                  <td className="px-4 py-3 align-top text-sm font-semibold whitespace-nowrap">{item.id}</td>
+                  <td className="px-4 py-3 align-top text-sm leading-relaxed">{item.manualAction}</td>
+                  <td className="px-4 py-3 align-top text-sm">{item.whereInProcess}</td>
+                  <td className="px-4 py-3 align-top text-sm">{item.region}</td>
+                  <td className="px-4 py-3 align-top text-sm leading-relaxed text-muted-foreground">{item.whyItMatters || "—"}</td>
+                  <td className="px-4 py-3 align-top text-sm leading-relaxed text-muted-foreground">{item.evidenceText || "—"}</td>
+                  <td className="px-4 py-3 align-top text-sm text-muted-foreground">{item.openQuestions || "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -121,7 +135,7 @@ export function CognitiveFrictionTab() {
       )}
 
       <Sheet open={!!selectedFriction} onOpenChange={() => setSelectedFriction(null)}>
-        <SheetContent className="w-[600px]">
+        <SheetContent className="w-[640px] overflow-y-auto">
           {selectedFriction && (
             <>
               <SheetHeader>
@@ -129,39 +143,73 @@ export function CognitiveFrictionTab() {
               </SheetHeader>
               <div className="mt-6 space-y-6">
                 <div>
-                  <h4 className="mb-2">Summary</h4>
-                  <p className="text-muted-foreground">{selectedFriction.manualAction}</p>
+                  <h4 className="mb-2 text-sm font-semibold">Current Manual Action</h4>
+                  <p className="text-sm text-muted-foreground">{selectedFriction.manualAction}</p>
                 </div>
-                <div>
-                  <h4 className="mb-2">Related Pain Points</h4>
-                  <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                    {selectedFriction.relatedPainPoints.map((point, index) => (
-                      <li key={index}>{point}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h4 className="mb-2">Evidence</h4>
-                  <div className="space-y-2">
-                    {selectedFriction.evidence.map((file, index) => (
-                      <div key={index} className="p-2 border border-border rounded-[var(--radius)]">
-                        {file}
-                      </div>
-                    ))}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="mb-1 text-sm font-semibold">Where in Process</h4>
+                    <p className="text-sm text-muted-foreground">{selectedFriction.whereInProcess}</p>
+                  </div>
+                  <div>
+                    <h4 className="mb-1 text-sm font-semibold">Region Impacted</h4>
+                    <p className="text-sm text-muted-foreground">{selectedFriction.region}</p>
                   </div>
                 </div>
-                <div 
+                {selectedFriction.whyItMatters && (
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Why It Matters</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{selectedFriction.whyItMatters}</p>
+                  </div>
+                )}
+                {selectedFriction.evidenceText && (
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Evidence</h4>
+                    <div className="p-3 border border-border rounded-[var(--radius)] bg-muted/30">
+                      <p className="text-sm text-muted-foreground leading-relaxed">{selectedFriction.evidenceText}</p>
+                    </div>
+                  </div>
+                )}
+                {selectedFriction.openQuestions && (
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Open Questions</h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{selectedFriction.openQuestions}</p>
+                  </div>
+                )}
+                {selectedFriction.relatedPainPoints.length > 0 && (
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Related Pain Points</h4>
+                    <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                      {selectedFriction.relatedPainPoints.map((point, index) => (
+                        <li key={index}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {selectedFriction.evidence.length > 0 && (
+                  <div>
+                    <h4 className="mb-2 text-sm font-semibold">Source Files</h4>
+                    <div className="space-y-2">
+                      {selectedFriction.evidence.map((file, index) => (
+                        <div key={index} className="p-2 border border-border rounded-[var(--radius)] text-sm">
+                          {file}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div
                   className="p-4 rounded-[var(--radius)] border-2"
-                  style={{ 
+                  style={{
                     borderColor: `var(--path-${selectedFriction.pathClassification.toLowerCase()})`,
                     backgroundColor: `var(--path-${selectedFriction.pathClassification.toLowerCase()}-light)`
                   }}
                 >
-                  <h4 className="mb-3">Path Classification</h4>
+                  <h4 className="mb-3 text-sm font-semibold">Path Classification</h4>
                   <div className="flex items-center gap-3">
-                    <div 
+                    <div
                       className="p-2 rounded-lg"
-                      style={{ 
+                      style={{
                         backgroundColor: `var(--path-${selectedFriction.pathClassification.toLowerCase()})`,
                         color: `var(--path-${selectedFriction.pathClassification.toLowerCase()}-foreground)`
                       }}

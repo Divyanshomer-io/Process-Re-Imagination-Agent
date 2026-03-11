@@ -2122,8 +2122,8 @@ def _generate_llm_process_blueprint(state: dict[str, Any], settings: Settings, s
             correction = (
                 f"\n\n=== CORRECTION (attempt {attempt}: no valid XML found) ===\n"
                 f"Your previous response did not contain a valid <ProcessBlueprint> XML block. "
-                f"Please output a single XML block starting with <ProcessBlueprint> and ending with "
-                f"</ProcessBlueprint>, containing a <MermaidData><![CDATA[ ... ]]></MermaidData> section "
+                f"Please output a single XML block starting with <ProcessBlueprint version=\"1.0\"> and ending with "
+                f"</ProcessBlueprint>, containing a <Diagram type=\"mermaid\"><![CDATA[ ... ]]></Diagram> section "
                 f"with valid Mermaid.js flowchart code."
             )
             current_prompt = blueprint_prompt + correction
@@ -2142,7 +2142,7 @@ def _generate_llm_process_blueprint(state: dict[str, Any], settings: Settings, s
             correction = (
                 f"\n\n=== CORRECTION (attempt {attempt} failed validation: {exc}) ===\n"
                 f"Your previous ProcessBlueprint XML failed validation. Please ensure the XML contains "
-                f"valid Mermaid.js flowchart code inside <MermaidData><![CDATA[ ... ]]></MermaidData>."
+                f"valid Mermaid.js flowchart code inside <Diagram type=\"mermaid\"><![CDATA[ ... ]]></Diagram>."
             )
             current_prompt = blueprint_prompt + correction
             if attempt < _LLM_PARSE_MAX_RETRIES:
@@ -2254,7 +2254,10 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
     print("[Blueprint_Node] USING LLM-GENERATED PROCESS BLUEPRINT as mermaid_xml")
 
     validate_strategy_report(strategy_report, min_words=effective_min_words)
-    validate_mermaid_xml(mermaid_xml)
+    try:
+        validate_process_blueprint_xml(mermaid_xml)
+    except ValueError:
+        validate_mermaid_xml(mermaid_xml)
 
     phase_status = dict(state.get("phase_status", {}))
     phase_status["phase_3_blueprint_generation"] = "completed"

@@ -47,6 +47,9 @@ export interface FrictionItem {
   manualAction: string;
   whereInProcess: string;
   region: string;
+  whyItMatters: string;
+  evidenceText: string;
+  openQuestions: string;
   evidenceCount: number;
   relatedPainPoints: string[];
   evidence: string[];

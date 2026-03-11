@@ -247,4 +247,7 @@ def validate_methodology_compliance(state: dict[str, Any], min_report_words: int
     report = state.get("strategy_report_markdown", "")
     mermaid_xml = state.get("mermaid_xml", "")
     validate_strategy_report(report, min_words=min_report_words)
-    validate_mermaid_xml(mermaid_xml)
+    try:
+        validate_process_blueprint_xml(mermaid_xml)
+    except ValueError:
+        validate_mermaid_xml(mermaid_xml)

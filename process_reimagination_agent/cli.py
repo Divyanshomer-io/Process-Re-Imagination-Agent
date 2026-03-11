@@ -67,6 +67,14 @@ def _extract_mermaid_code(blueprint_xml: str) -> str:
     legacy_match = re.search(r"<Diagram[^>]*><!\[CDATA\[(.*?)\]\]></Diagram>", blueprint_xml, re.S)
     if legacy_match:
         return legacy_match.group(1).strip()
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(blueprint_xml)
+        diagram_el = root.find("Diagram")
+        if diagram_el is not None and diagram_el.text:
+            return diagram_el.text.strip()
+    except Exception:
+        pass
     return ""
 
 

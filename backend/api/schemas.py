@@ -91,11 +91,14 @@ RunStatusResponse.model_rebuild()
 # --- Results tab shapes (match mockResults.ts exactly) ---
 
 class FrictionItemResponse(BaseModel):
-    """Matches the UI's mockFrictionData element shape."""
+    """Matches the UI's FrictionItem element shape."""
     id: str
     manualAction: str
     whereInProcess: str
     region: str
+    whyItMatters: str
+    evidenceText: str
+    openQuestions: str
     evidenceCount: int
     relatedPainPoints: list[str]
     evidence: list[str]
