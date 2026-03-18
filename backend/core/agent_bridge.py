@@ -179,9 +179,23 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
     (output_dir / "strategy_report.md").write_text(report, encoding="utf-8")
     (output_dir / "process_blueprint.xml").write_text(xml, encoding="utf-8")
 
+    mermaid_code = ""
     mermaid_match = re.search(r"<MermaidData><!\[CDATA\[(.*?)\]\]></MermaidData>", xml, re.S)
     if mermaid_match:
-        (output_dir / "process_blueprint.mmd").write_text(mermaid_match.group(1).strip(), encoding="utf-8")
+        mermaid_code = mermaid_match.group(1).strip()
+        (output_dir / "process_blueprint.mmd").write_text(mermaid_code, encoding="utf-8")
+
+    from process_reimagination_agent.mermaid_render import render_mermaid_to_svg
+
+    render_artifact = (
+        render_mermaid_to_svg(settings, output_dir=output_dir, mermaid_code=mermaid_code)
+        if mermaid_code
+        else {"status": "skipped", "warning": "Mermaid code not found in blueprint XML."}
+    )
+    state["render_artifact"] = render_artifact
+    if render_artifact.get("warning"):
+        state.setdefault("errors", [])
+        state["errors"].append(str(render_artifact["warning"]))
 
     friction_logs = state.get("cognitive_friction_logs", [])
     friction_md = build_friction_points_markdown(

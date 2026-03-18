@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-_AGENT_ROOT = Path(__file__).resolve().parent.parent / "Process-Re-Imagination-Agent"
+_AGENT_ROOT = Path(__file__).resolve().parent.parent
 if str(_AGENT_ROOT) not in sys.path:
     sys.path.insert(0, str(_AGENT_ROOT))
 

@@ -1,0 +1,397 @@
+{
+  "thread_id": "cli-test-thread",
+  "reason": "resume_failed: [Blueprint_Node] All 3 strategy report LLM attempts failed. Last response had 3952 words (needed 2000).",
+  "payload": {
+    "state": {
+      "raw_inputs": {
+        "manifest": {
+          "process_name": "Order Intake",
+          "context_region": "ANZ",
+          "pain_points": [
+            "Manual email/PDF order entry",
+            "Frequent order modifications"
+          ],
+          "files": [
+            "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt"
+          ],
+          "additional_context": {}
+        },
+        "channel": "",
+        "order_status": "open",
+        "friction_analysis_prompt": "PROMPT 1 \u2014 PAIN POINTS & OPPORTUNITIES EXTRACTOR (A/B/C CANDIDATES) \u2014 TABLE OUTPUT ONLY\n\nRole: Principal Enterprise AI Architect and Business Transformation Strategist.\nMode: High reasoning.\n\nGoal\nExtract a comprehensive list of pain points and improvement opportunities from the provided process inputs, including:\n- Standardization gaps (candidates for SAP S/4HANA Clean Core standardization),\n- Deterministic automation candidates (candidates for SAP BTP workflows/orchestration),\n- Agentic candidates (candidates for SAP Joule / GenAI where perception, reasoning, or adaptive action is required).\n\nInputs\nYou will receive process maps, process documentation, regional nuances, and benchmark/best-practice material (if provided).\n\nOutput (STRICT)\nProduce ONLY a table titled \"Pain Points & Opportunities (A/B/C Candidates)\".\nDo not include narrative explanation outside the table.\n\nRules (STRICT)\n- Use ONLY what is explicitly supported by the provided documents.\n- If a detail is not stated, write \"Not specified\" and add it as an open question.\n- Each row represents ONE discrete pain point/opportunity (one issue, one variance, one exception type, one control gap, or one deviation).\n- Provide evidence per row: document name + page/section + short quote/paraphrase.\n- Do NOT assign Path A/B/C in this prompt (classification happens in Prompt 2).\n- Do NOT output URLs or local file paths.\n\nTable Columns (STRICT)\n- Item_ID (P-001, P-002\u2026)\n- Issue_or_Opportunity (short label)\n- Current_Observed_Practice (what happens today; can be manual, exception, workaround, variance, or delay)\n- Where_in_Process (step/activity name as stated)\n- Trigger_or_Input_Channel (only if stated)\n- Region_Impacted (Global or specific regions only if stated)\n- Systems_or_Tools_Mentioned (only what is stated; else \"Not specified\")\n- Why_It_Matters (1\u20132 lines: delay, errors, rework, compliance risk, fragmentation, cost)\n- Evidence (Document + page/section + quote/paraphrase)\n- Open_Questions (only when needed)\n\nBegin\nRead the inputs and output the \"Pain Points & Opportunities (A/B/C Candidates)\" table only.\n",
+        "documents": [
+          {
+            "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+            "mime_type": "text/plain",
+            "content": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.\n\n",
+            "error": "",
+            "source_id": "DOC1",
+            "extraction_confidence": 0.0,
+            "graph_confidence": 0.0
+          }
+        ],
+        "canonical_documents": [
+          {
+            "source_id": "DOC1",
+            "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+            "mime_type": "text/plain",
+            "pages": [
+              {
+                "source_id": "DOC1",
+                "page_number": 1,
+                "page_type": "text",
+                "text_content": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.\n\n",
+                "extraction_method": "text_layer",
+                "confidence": 0.68,
+                "nodes": [],
+                "edges": [],
+                "lanes": [],
+                "warnings": []
+              }
+            ],
+            "graph": {
+              "graph_id": "DOC1-graph",
+              "nodes": [],
+              "edges": [],
+              "lanes": [],
+              "extraction_confidence": 0.0,
+              "unresolved_edges": 0,
+              "warnings": []
+            },
+            "extraction_confidence": 0.0,
+            "warnings": []
+          }
+        ],
+        "process_graphs": [
+          {
+            "graph_id": "DOC1-graph",
+            "nodes": [],
+            "edges": [],
+            "lanes": [],
+            "extraction_confidence": 0.0,
+            "unresolved_edges": 0,
+            "warnings": []
+          }
+        ],
+        "combined_text": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.",
+        "extraction_errors": [],
+        "approved_by": "qa.user",
+        "approval_notes": ""
+      },
+      "cognitive_friction_logs": [
+        {
+          "friction_id": "P-001",
+          "issue_or_opportunity": "Manual email/PDF order entry",
+          "current_manual_action": "Orders received via email/PDF are manually entered into SAP",
+          "where_in_process": "Perform Order Intake / Enter Order Into System",
+          "trigger_or_input_channel": "Email; PDF",
+          "region_impacted": "Not specified",
+          "systems_or_tools_mentioned": "Email; PDF; SAP",
+          "why_its_friction": "Not specified",
+          "open_questions": "Which regions and volumes rely on email/PDF order intake? What is the SLA/impact of manual entry (e.g., turnaround time, error rates)?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Manual email and PDF order entry into SAP.\""
+        },
+        {
+          "friction_id": "P-002",
+          "issue_or_opportunity": "Spreadsheet uploads from DC channels (India)",
+          "current_manual_action": "Orders are uploaded via spreadsheets from distribution center channels",
+          "where_in_process": "Perform Order Intake / Enter Order Into System",
+          "trigger_or_input_channel": "Spreadsheet uploads from distribution center channels",
+          "region_impacted": "India",
+          "systems_or_tools_mentioned": "Spreadsheets",
+          "why_its_friction": "Not specified",
+          "open_questions": "Which file formats/templates are used? How are spreadsheets validated and posted into the system?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Spreadsheet uploads from distribution center channels in India.\""
+        },
+        {
+          "friction_id": "P-003",
+          "issue_or_opportunity": "Frequent order change requests (ANZ)",
+          "current_manual_action": "High frequency of order change requests occurs",
+          "where_in_process": "Not specified",
+          "trigger_or_input_channel": "Not specified",
+          "region_impacted": "ANZ",
+          "systems_or_tools_mentioned": "Not specified",
+          "why_its_friction": "Not specified",
+          "open_questions": "What is the volume and main drivers of change requests? Through which channels do changes arrive and how are they processed today?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Frequent order change requests in ANZ.\""
+        },
+        {
+          "friction_id": "P-004",
+          "issue_or_opportunity": "Power Street payload requires normalization (UY)",
+          "current_manual_action": "Incoming Power Street channel payload must be normalized before posting",
+          "where_in_process": "Perform Order Intake / Enter Order Into System",
+          "trigger_or_input_channel": "Uruguay Power Street channel payload",
+          "region_impacted": "Uruguay",
+          "systems_or_tools_mentioned": "Power Street",
+          "why_its_friction": "Not specified",
+          "open_questions": "What normalization rules/fields are required? Is normalization currently manual or automated, and what is the posting target?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Uruguay Power Street channel payload requires normalization before posting.\""
+        },
+        {
+          "friction_id": "P-005",
+          "issue_or_opportunity": "Deduction and dispute processing slow and manual",
+          "current_manual_action": "Deduction and dispute processing is performed manually and is slow",
+          "where_in_process": "Deduction and dispute processing",
+          "trigger_or_input_channel": "Not specified",
+          "region_impacted": "Not specified",
+          "systems_or_tools_mentioned": "Not specified",
+          "why_its_friction": "Slow processing implies delays; manual effort required",
+          "open_questions": "What are current cycle times and volumes? Which systems/teams handle deductions and disputes today?",
+          "friction_type": "Slow processing implies delays; manual effort required",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Slow processing implies delays; manual effort required",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Deduction and dispute processing is slow and manual.\""
+        },
+        {
+          "friction_id": "P-006",
+          "issue_or_opportunity": "VA01 used as fallback exception path (ANZ)",
+          "current_manual_action": "SAP VA01 is used as a fallback exception path rather than the default",
+          "where_in_process": "VA01 fallback exception path",
+          "trigger_or_input_channel": "Not specified",
+          "region_impacted": "ANZ",
+          "systems_or_tools_mentioned": "SAP VA01",
+          "why_its_friction": "Not specified",
+          "open_questions": "Under what scenarios is VA01 invoked? How frequently is the fallback used and who approves exceptions?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Regional nuances \u2014 \"ANZ VA01 is a fallback exception path, not the default.\""
+        },
+        {
+          "friction_id": "P-007",
+          "issue_or_opportunity": "External channel adapter required for Power Street (UY)",
+          "current_manual_action": "Uruguay\u2019s Power Street requires an external channel adapter",
+          "where_in_process": "Not specified",
+          "trigger_or_input_channel": "Uruguay Power Street channel",
+          "region_impacted": "Uruguay",
+          "systems_or_tools_mentioned": "Power Street",
+          "why_its_friction": "Not specified",
+          "open_questions": "Is an adapter already available or to be built? What are the interface specifications and ownership for the adapter?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Regional nuances \u2014 \"Uruguay Power Street is an external channel adapter requirement.\""
+        },
+        {
+          "friction_id": "P-008",
+          "issue_or_opportunity": "Keep SAP core standard; route adaptive logic through Side-Car",
+          "current_manual_action": "Guideline to maintain SAP clean core; adaptive logic to be implemented in Side-Car",
+          "where_in_process": "Not specified",
+          "trigger_or_input_channel": "Not specified",
+          "region_impacted": "Not specified",
+          "systems_or_tools_mentioned": "SAP core; Side-Car",
+          "why_its_friction": "Not specified",
+          "open_questions": "Which adaptive logic components are in scope for Side-Car? Are there current core customizations that must be migrated?",
+          "friction_type": "Not specified",
+          "proposed_path": "B",
+          "rationale": "LLM-identified: Not specified",
+          "expected_kpi_shift": "To be assessed",
+          "requires_perception": false,
+          "requires_reasoning": false,
+          "requires_adaptive_action": false,
+          "source_evidence": "Process: Perform Order Intake / Enter Order Into System \u2014 Regional nuances \u2014 \"Keep SAP core standard and route adaptive logic through Side-Car.\""
+        }
+      ],
+      "path_decisions": [
+        {
+          "current_manual_action": "Orders received via email/PDF are manually entered into SAP",
+          "path": "B",
+          "confidence": 0.97,
+          "rationale": "Requires perception to read/extract unstructured emails/PDFs; beyond deterministic rules. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "Workflow Automation Side-Car",
+          "regional_overrides": []
+        },
+        {
+          "current_manual_action": "Orders are uploaded via spreadsheets from distribution center channels",
+          "path": "B",
+          "confidence": 0.97,
+          "rationale": "Deterministic validations/transforms for spreadsheet uploads; no perception/reasoning indicated. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "Workflow Automation Side-Car",
+          "regional_overrides": []
+        },
+        {
+          "current_manual_action": "High frequency of order change requests occurs",
+          "path": "B",
+          "confidence": 0.9,
+          "rationale": "Frequent order changes can be handled via deterministic workflows/routing/validations; no proven need for perception/reasoning/adaptive action in evidence. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "ANZ Change Manager + VA01 Fallback Gate",
+          "regional_overrides": [
+            "ANZ_VA01_FALLBACK"
+          ]
+        },
+        {
+          "current_manual_action": "Incoming Power Street channel payload must be normalized before posting",
+          "path": "B",
+          "confidence": 0.97,
+          "rationale": "Payload normalization implies rule-based mapping/transformation; deterministic automation fits. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "Workflow Automation Side-Car",
+          "regional_overrides": []
+        },
+        {
+          "current_manual_action": "Deduction and dispute processing is performed manually and is slow",
+          "path": "B",
+          "confidence": 0.9,
+          "rationale": "Slow/manual disputes can be improved with deterministic case workflows, routing, and validations; evidence does not confirm perception/reasoning inputs. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "ANZ Change Manager + VA01 Fallback Gate",
+          "regional_overrides": [
+            "ANZ_VA01_FALLBACK"
+          ]
+        },
+        {
+          "current_manual_action": "SAP VA01 is used as a fallback exception path rather than the default",
+          "path": "A",
+          "confidence": 0.97,
+          "rationale": "Standardize process/config to reduce exception reliance on VA01; rule-based clean core enforcement. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "Workflow Automation Side-Car",
+          "regional_overrides": []
+        },
+        {
+          "current_manual_action": "Uruguay\u2019s Power Street requires an external channel adapter",
+          "path": "B",
+          "confidence": 0.97,
+          "rationale": "External channel adapter is an integration/orchestration need; deterministic transformation on BTP. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "Workflow Automation Side-Car",
+          "regional_overrides": []
+        },
+        {
+          "current_manual_action": "Guideline to maintain SAP clean core; adaptive logic to be implemented in Side-Car",
+          "path": "A",
+          "confidence": 0.97,
+          "rationale": "Policy to keep SAP core standard aligns to clean-core standardization; adaptive logic offloaded outside core. Classified via mandatory Phase 2 suitability assessment.",
+          "clean_core_guardrail": "Keep ERP kernel standard; route custom logic to Side-Car orchestration and APIs only.",
+          "side_car_component": "Workflow Automation Side-Car",
+          "regional_overrides": []
+        }
+      ],
+      "refined_blueprint": {},
+      "process_name": "Order Intake",
+      "context_region": "ANZ",
+      "pain_points": [
+        "Manual email/PDF order entry",
+        "Frequent order modifications"
+      ],
+      "regional_nuances": {
+        "india_dc_based_entry": true,
+        "china_digital_hub": false,
+        "anz_va01_exception_enabled": true,
+        "uruguay_power_street_enabled": true
+      },
+      "evidence_references": [
+        {
+          "id": "DOC1",
+          "source": "order_intake_notes.txt",
+          "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+          "excerpt": "Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center channels in India. -..."
+        }
+      ],
+      "canonical_documents": [
+        {
+          "source_id": "DOC1",
+          "path": "C:\\Users\\lildivya\\OneDrive - McCain Foods Limited\\Desktop\\Process-Re-Imagination-Agent\\Process-Re-Imagination-Agent\\sample_inputs\\order_intake_notes.txt",
+          "mime_type": "text/plain",
+          "pages": [
+            {
+              "source_id": "DOC1",
+              "page_number": 1,
+              "page_type": "text",
+              "text_content": "Process: Perform Order Intake / Enter Order Into System\nRegion Context: ANZ, India, Uruguay\n\nPain points:\n- Manual email and PDF order entry into SAP.\n- Spreadsheet uploads from distribution center channels in India.\n- Frequent order change requests in ANZ.\n- Uruguay Power Street channel payload requires normalization before posting.\n- Deduction and dispute processing is slow and manual.\n\nRegional nuances:\n- ANZ VA01 is a fallback exception path, not the default.\n- Uruguay Power Street is an external channel adapter requirement.\n- Keep SAP core standard and route adaptive logic through Side-Car.\n\n",
+              "extraction_method": "text_layer",
+              "confidence": 0.68,
+              "nodes": [],
+              "edges": [],
+              "lanes": [],
+              "warnings": []
+            }
+          ],
+          "graph": {
+            "graph_id": "DOC1-graph",
+            "nodes": [],
+            "edges": [],
+            "lanes": [],
+            "extraction_confidence": 0.0,
+            "unresolved_edges": 0,
+            "warnings": []
+          },
+          "extraction_confidence": 0.0,
+          "warnings": []
+        }
+      ],
+      "process_graphs": [
+        {
+          "graph_id": "DOC1-graph",
+          "nodes": [],
+          "edges": [],
+          "lanes": [],
+          "extraction_confidence": 0.0,
+          "unresolved_edges": 0,
+          "warnings": []
+        }
+      ],
+      "phase_status": {
+        "phase_1_current_reality_synthesis": "completed",
+        "phase_2_agentic_reasoning": "completed",
+        "phase_3_blueprint_generation": "pending",
+        "quality_control": "pass"
+      },
+      "confidence_score": 0.9525,
+      "trust_gap_phase": "Shadow",
+      "quality_feedback": [],
+      "refinement_iterations": 0,
+      "manual_approval": true,
+      "strategy_report_markdown": "",
+      "mermaid_xml": "",
+      "use_case_cards_json": "",
+      "errors": [],
+      "quality_gate_result": "blueprint",
+      "path_classifier_prompt": "PROMPT 2 \u2014 PATH A/B/C CLASSIFIER (SAP-SPECIFIC) \u2014 TABLE OUTPUT ONLY\n\nRole: Principal Enterprise AI Architect and Business Transformation Strategist.\nMode: High reasoning.\n\nGoal\nClassify each Item_ID into exactly one SAP-specific path:\n\n- Path A (Core Standardization \u2014 SAP S/4HANA Clean Core):\n  Standardize back to SAP S/4HANA standard process/rules/config; reduce custom variance.\n\n- Path B (Platform Enhancements / Deterministic Automation \u2014 SAP BTP):\n  Deterministic automation such as workflows, routing, validations, integrations, and orchestration on SAP BTP.\n\n- Path C (Agentic AI Deployment \u2014 SAP Joule / GenAI):\n  Assign ONLY if the task requires at least one:\n    1) Perception (unstructured reading/extraction: emails, PDFs, fax, free text),\n    2) Reasoning (trade-off analysis, multi-step judgment),\n    3) Adaptive Action (dynamic exception handling/planning).\n\nInputs\nYou will receive:\n1) \"Pain Points & Opportunities (A/B/C Candidates)\" table from Prompt 1\n2) The same source documents (for evidence cross-check)\n\nSuitability Rule (STRICT)\nAssign Path C ONLY if Perception or Reasoning or Adaptive Action is required.\nIf not, prefer Path B or Path A.\n\nOutput (STRICT)\nProduce ONLY a table titled \"Path Classification (A/B/C) \u2014 SAP\".\nDo not include narrative outside the table.\n\nRules (STRICT)\n- Map 1:1 to Item_ID from Prompt 1.\n- Use evidence from the provided documents.\n- Do not invent SAP products/services beyond: SAP S/4HANA, SAP BTP, SAP Joule/GenAI.\n- Do NOT output URLs or local file paths.\n\nTable Columns (STRICT)\n- Item_ID\n- Recommended_Path (A / B / C)\n- Suitability_Justification (1\u20132 lines; MUST reference rule-based vs perception/reasoning/adaptive action)\n- SAP_Target (SAP S/4HANA | SAP BTP | SAP Joule/GenAI)\n- Core_vs_SideCar_Orientation (Core / Side-Car / Hybrid \u2014 conceptual)\n- Human_Supervision_Needed (Yes / No / Conditional)\n- Confidence (High / Medium / Low)\n- Evidence (Document + page/section supporting classification)\n- Open_Questions (if classification depends on missing info)\n\nBegin\nClassify all items and output the \"Path Classification (A/B/C) \u2014 SAP\" table only.\n\n=== PAIN POINTS & OPPORTUNITIES TABLE ===\n| Item_ID | Issue_or_Opportunity | Current_Observed_Practice | Where_in_Process | Trigger_or_Input_Channel | Region_Impacted | Systems_or_Tools_Mentioned | Why_It_Matters | Evidence | Open_Questions |\n|---|---|---|---|---|---|---|---|---|---|\n| P-001 | Manual email/PDF order entry | Orders received via email/PDF are manually entered into SAP | Perform Order Intake / Enter Order Into System | Email; PDF | Not specified | Email; PDF; SAP | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Manual email and PDF order entry into SAP.\" | Which regions and volumes rely on email/PDF order intake? What is the SLA/impact of manual entry (e.g., turnaround time, error rates)? |\n| P-002 | Spreadsheet uploads from DC channels (India) | Orders are uploaded via spreadsheets from distribution center channels | Perform Order Intake / Enter Order Into System | Spreadsheet uploads from distribution center channels | India | Spreadsheets | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Spreadsheet uploads from distribution center channels in India.\" | Which file formats/templates are used? How are spreadsheets validated and posted into the system? |\n| P-003 | Frequent order change requests (ANZ) | High frequency of order change requests occurs | Not specified | Not specified | ANZ | Not specified | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Frequent order change requests in ANZ.\" | What is the volume and main drivers of change requests? Through which channels do changes arrive and how are they processed today? |\n| P-004 | Power Street payload requires normalization (UY) | Incoming Power Street channel payload must be normalized before posting | Perform Order Intake / Enter Order Into System | Uruguay Power Street channel payload | Uruguay | Power Street | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Uruguay Power Street channel payload requires normalization before posting.\" | What normalization rules/fields are required? Is normalization currently manual or automated, and what is the posting target? |\n| P-005 | Deduction and dispute processing slow and manual | Deduction and dispute processing is performed manually and is slow | Deduction and dispute processing | Not specified | Not specified | Not specified | Slow processing implies delays; manual effort required | Process: Perform Order Intake / Enter Order Into System \u2014 Pain points \u2014 \"Deduction and dispute processing is slow and manual.\" | What are current cycle times and volumes? Which systems/teams handle deductions and disputes today? |\n| P-006 | VA01 used as fallback exception path (ANZ) | SAP VA01 is used as a fallback exception path rather than the default | VA01 fallback exception path | Not specified | ANZ | SAP VA01 | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Regional nuances \u2014 \"ANZ VA01 is a fallback exception path, not the default.\" | Under what scenarios is VA01 invoked? How frequently is the fallback used and who approves exceptions? |\n| P-007 | External channel adapter required for Power Street (UY) | Uruguay\u2019s Power Street requires an external channel adapter | Not specified | Uruguay Power Street channel | Uruguay | Power Street | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Regional nuances \u2014 \"Uruguay Power Street is an external channel adapter requirement.\" | Is an adapter already available or to be built? What are the interface specifications and ownership for the adapter? |\n| P-008 | Keep SAP core standard; route adaptive logic through Side-Car | Guideline to maintain SAP clean core; adaptive logic to be implemented in Side-Car | Not specified | Not specified | Not specified | SAP core; Side-Car | Not specified | Process: Perform Order Intake / Enter Order Into System \u2014 Regional nuances \u2014 \"Keep SAP core standard and route adaptive logic through Side-Car.\" | Which adaptive logic components are in scope for Side-Car? Are there current core customizations that must be migrated? |\n\n=== SOURCE EVIDENCE REGISTER ===\n- [DOC1] order_intake_notes.txt: Process: Perform Order Intake / Enter Order Into System Region Context: ANZ, India, Uruguay Pain points: - Manual email and PDF order entry into SAP. - Spreadsheet uploads from distribution center channels in India. -...\n"
+    }
+  },
+  "created_at_epoch": 1773814809
+}

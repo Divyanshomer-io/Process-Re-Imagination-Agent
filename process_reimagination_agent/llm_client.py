@@ -1,11 +1,8 @@
-"""Unified LLM client with DAIA as primary backend and Azure/OpenAI as fallbacks.
+"""LLM client using DAIA as the sole backend.
 
 The DAIA (Data AI Accelerator) endpoint uses a custom token-based auth flow:
 1. POST client_id/client_secret to generate a Bearer token.
 2. Use the Bearer token to call the chat completions API.
-
-When DAIA is unavailable, the client falls back to Azure OpenAI SDK and then
-plain OpenAI SDK, matching the previous behaviour.
 """
 
 from __future__ import annotations
@@ -66,6 +63,9 @@ _DAIA_CONNECT_TIMEOUT = 30
 _DAIA_READ_TIMEOUT = 300
 
 
+_DAIA_DEFAULT_MAX_TOKENS = 100000
+
+
 def _call_daia(
     prompt: str,
     settings: Settings,
@@ -80,16 +80,18 @@ def _call_daia(
     messages.append({"role": "user", "content": prompt})
 
     url = f"{settings.daia_base_url.rstrip('/')}{_DAIA_CHAT_PATH}"
+    effective_max_tokens = max_tokens if max_tokens is not None else _DAIA_DEFAULT_MAX_TOKENS
+    # Strict: GPT-5 only — no other model or fallback
     body: dict[str, Any] = {
-        "model": settings.daia_model,
+        "model": "gpt-5",
         "messages": messages,
-        "max_tokens": max_tokens if max_tokens is not None else 16384,
+        "max_tokens": effective_max_tokens,
     }
 
     for attempt in range(2):
         token = _generate_daia_token(settings)
         headers = {"Authorization": f"Bearer {token}"}
-        _logger.info("DAIA request: model=%s, max_tokens=%s, attempt=%d", settings.daia_model, body["max_tokens"], attempt + 1)
+        _logger.info("DAIA request: model=gpt-5 (strict), max_tokens=%s, attempt=%d", body["max_tokens"], attempt + 1)
         resp = requests.post(
             url,
             json=body,
@@ -103,71 +105,29 @@ def _call_daia(
             continue
         resp.raise_for_status()
         data = resp.json()
-        return data["choices"][0]["message"]["content"]
+
+        choices = data.get("choices") or []
+        if not choices:
+            _logger.warning(
+                "DAIA returned no choices. Response keys: %s, usage: %s",
+                list(data.keys()),
+                data.get("usage"),
+            )
+            _logger.debug("DAIA raw response (no choices): %s", data)
+            return None
+        first = choices[0]
+        message = first.get("message") or first
+        content = message.get("content") if isinstance(message.get("content"), str) else message.get("text")
+        if content is None or (isinstance(content, str) and not content.strip()):
+            _logger.warning(
+                "DAIA returned null/empty content. finish_reason=%s, message keys=%s",
+                first.get("finish_reason"),
+                list(message.keys()) if isinstance(message, dict) else None,
+            )
+            _logger.debug("DAIA raw response (empty content): %s", data)
+        return (content or "").strip() or None
 
     return None
-
-
-def _call_azure_openai(
-    prompt: str,
-    settings: Settings,
-    *,
-    system_message: str | None = None,
-    max_tokens: int | None = None,
-) -> str | None:
-    try:
-        from openai import AzureOpenAI  # type: ignore[import-untyped]
-    except ImportError:
-        return None
-
-    messages: list[dict[str, str]] = []
-    if system_message:
-        messages.append({"role": "system", "content": system_message})
-    messages.append({"role": "user", "content": prompt})
-
-    client = AzureOpenAI(
-        azure_endpoint=settings.azure_openai_endpoint,
-        api_key=settings.azure_openai_api_key,
-        api_version=settings.azure_openai_api_version,
-    )
-    kwargs: dict[str, Any] = {
-        "model": settings.azure_openai_deployment,
-        "temperature": settings.model_temperature,
-        "messages": messages,
-    }
-    if max_tokens is not None:
-        kwargs["max_tokens"] = max_tokens
-    response = client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
-    return response.choices[0].message.content
-
-
-def _call_openai(
-    prompt: str,
-    settings: Settings,
-    *,
-    system_message: str | None = None,
-    max_tokens: int | None = None,
-) -> str | None:
-    try:
-        from openai import OpenAI  # type: ignore[import-untyped]
-    except ImportError:
-        return None
-
-    messages: list[dict[str, str]] = []
-    if system_message:
-        messages.append({"role": "system", "content": system_message})
-    messages.append({"role": "user", "content": prompt})
-
-    client = OpenAI(api_key=settings.openai_api_key)
-    kwargs: dict[str, Any] = {
-        "model": settings.openai_model,
-        "temperature": settings.model_temperature,
-        "messages": messages,
-    }
-    if max_tokens is not None:
-        kwargs["max_tokens"] = max_tokens
-    response = client.chat.completions.create(**kwargs)  # type: ignore[arg-type]
-    return response.choices[0].message.content
 
 
 class LLMNotConfiguredError(RuntimeError):
@@ -185,79 +145,47 @@ def call_llm(
     system_message: str | None = None,
     max_tokens: int | None = None,
 ) -> str:
-    """Send *prompt* to the best available LLM backend and return the reply.
+    """Send *prompt* to the configured DAIA LLM backend and return the reply.
 
-    Priority: DAIA (primary, with retries) -> Azure OpenAI (fallback) -> OpenAI (fallback).
+    Retries up to ``_DAIA_CALL_RETRIES`` times on transient failures.
     Raises ``LLMNotConfiguredError`` when no backend is configured.
-    Raises ``RuntimeError`` when all configured backends fail.
+    Raises ``RuntimeError`` when all attempts fail.
     """
-    if not settings.any_llm_configured:
+    if not settings.daia_enabled:
         raise LLMNotConfiguredError(
-            "No LLM backend is configured. Set DAIA_CLIENT_ID/DAIA_CLIENT_SECRET, "
-            "AZURE_OPENAI_ENDPOINT/AZURE_OPENAI_API_KEY, or OPENAI_API_KEY in your "
-            ".env file or environment variables."
+            "No LLM backend is configured. Set DAIA_CLIENT_ID and "
+            "DAIA_CLIENT_SECRET in your .env file or environment variables."
         )
+
+    # Strict: only GPT-5 is used; override any other model setting
+    if settings.daia_model != "gpt-5":
+        _logger.warning("Enforcing model=gpt-5 (was %s); all outputs from GPT-5 only", settings.daia_model)
 
     prompt_preview = prompt[:80].replace("\n", " ")
     print(f"  [LLM] call_llm invoked (prompt: {len(prompt)} chars, max_tokens: {max_tokens}) -- \"{prompt_preview}...\"")
 
     errors_encountered: list[str] = []
 
-    if settings.daia_enabled:
-        for daia_attempt in range(1, _DAIA_CALL_RETRIES + 1):
-            try:
-                result = _call_daia(prompt, settings, system_message=system_message, max_tokens=max_tokens)
-                if result:
-                    print(f"  [LLM] Response received via DAIA ({len(result)} chars)")
-                    _logger.info("LLM response received via DAIA endpoint")
-                    return result
-                errors_encountered.append(f"DAIA returned empty response (attempt {daia_attempt})")
-            except Exception as exc:
-                errors_encountered.append(f"DAIA (attempt {daia_attempt}): {exc}")
-                action = "retrying" if daia_attempt < _DAIA_CALL_RETRIES else "trying fallback"
-                print(f"  [LLM] DAIA failed (attempt {daia_attempt}/{_DAIA_CALL_RETRIES}), {action}: {exc}")
-                _logger.warning(
-                    "DAIA call failed (attempt %d/%d), %s: %s",
-                    daia_attempt,
-                    _DAIA_CALL_RETRIES,
-                    action,
-                    exc,
-                )
-                if daia_attempt < _DAIA_CALL_RETRIES:
-                    wait = _DAIA_RETRY_BACKOFF * daia_attempt
-                    _logger.info("Waiting %ds before DAIA retry...", wait)
-                    time.sleep(wait)
-
-    if settings.azure_enabled:
+    for attempt in range(1, _DAIA_CALL_RETRIES + 1):
         try:
-            print("  [LLM] Trying Azure OpenAI fallback...")
-            result = _call_azure_openai(prompt, settings, system_message=system_message, max_tokens=max_tokens)
+            result = _call_daia(prompt, settings, system_message=system_message, max_tokens=max_tokens)
             if result:
-                print(f"  [LLM] Response received via Azure OpenAI ({len(result)} chars)")
-                _logger.info("LLM response received via Azure OpenAI")
+                print(f"  [LLM] Response received via DAIA ({len(result)} chars)")
+                _logger.info("LLM response received via DAIA endpoint")
                 return result
-            errors_encountered.append("Azure OpenAI returned empty response")
+            errors_encountered.append(f"DAIA returned empty response (attempt {attempt})")
+            _logger.warning("DAIA returned empty response (attempt %d/%d)", attempt, _DAIA_CALL_RETRIES)
         except Exception as exc:
-            errors_encountered.append(f"Azure OpenAI: {exc}")
-            print(f"  [LLM] Azure OpenAI failed: {exc}")
-            _logger.warning("Azure OpenAI call failed: %s", exc)
+            errors_encountered.append(f"DAIA (attempt {attempt}): {exc}")
+            action = "retrying" if attempt < _DAIA_CALL_RETRIES else "giving up"
+            print(f"  [LLM] DAIA failed (attempt {attempt}/{_DAIA_CALL_RETRIES}), {action}: {exc}")
+            _logger.warning("DAIA call failed (attempt %d/%d), %s: %s", attempt, _DAIA_CALL_RETRIES, action, exc)
 
-    if settings.openai_enabled:
-        try:
-            print("  [LLM] Trying OpenAI fallback...")
-            result = _call_openai(prompt, settings, system_message=system_message, max_tokens=max_tokens)
-            if result:
-                print(f"  [LLM] Response received via OpenAI ({len(result)} chars)")
-                _logger.info("LLM response received via OpenAI")
-                return result
-            errors_encountered.append("OpenAI returned empty response")
-        except Exception as exc:
-            errors_encountered.append(f"OpenAI: {exc}")
-            print(f"  [LLM] OpenAI failed: {exc}")
-            _logger.warning("OpenAI call failed: %s", exc)
+        if attempt < _DAIA_CALL_RETRIES:
+            wait = _DAIA_RETRY_BACKOFF * attempt
+            _logger.info("Waiting %ds before retry...", wait)
+            time.sleep(wait)
 
     error_detail = "; ".join(errors_encountered)
-    print(f"  [LLM] ALL BACKENDS FAILED: {error_detail}")
-    raise RuntimeError(
-        f"All configured LLM backends failed. Errors: {error_detail}"
-    )
+    print(f"  [LLM] ALL ATTEMPTS FAILED: {error_detail}")
+    raise RuntimeError(f"All DAIA LLM attempts failed. Errors: {error_detail}")

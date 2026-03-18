@@ -71,10 +71,10 @@ _SYSTEM_MESSAGE_USE_CASE_CARDS = (
     "You never output URLs or local file paths. Each card must cite at least one evidence item."
 )
 
-_MAX_DOCUMENT_CHARS = 24000
-_MAX_TOKENS_ANALYSIS = 16384
-_MAX_TOKENS_BLUEPRINT = 16384
-_MAX_TOKENS_USE_CASE_CARDS = 16384
+_MAX_DOCUMENT_CHARS = 4_000_000  # ~1M tokens; ensures entire files read for typical large document sets
+_MAX_TOKENS_ANALYSIS = 100000
+_MAX_TOKENS_BLUEPRINT = 100000
+_MAX_TOKENS_USE_CASE_CARDS = 100000
 
 _LLM_PARSE_MAX_RETRIES = 3
 _LLM_PARSE_RETRY_BACKOFF = 2
@@ -488,112 +488,6 @@ def _merge_friction_items(primary: list[FrictionItem], secondary: list[FrictionI
     return merged
 
 
-def _fallback_friction_from_pain_points(pain_points: list[str], combined_text: str) -> list[FrictionItem]:
-    frictions: list[FrictionItem] = []
-    for pain_point in pain_points:
-        text = pain_point.lower()
-        if any(token in text for token in ["email", "pdf", "spreadsheet", "manual entry", "transcribing"]):
-            frictions.append(
-                FrictionItem(
-                    current_manual_action=pain_point,
-                    where_in_process="Order Intake / Data Entry",
-                    trigger_or_input_channel="Email, PDF, Spreadsheet",
-                    systems_or_tools_mentioned="Not specified",
-                    why_its_friction="Delay from manual re-keying; high transcription error rate.",
-                    friction_type="Human transcription and unstructured intake triage",
-                    proposed_path="C",
-                    rationale="Requires perception over unstructured documents and adaptive extraction checks.",
-                    expected_kpi_shift="60-80% faster intake with lower transcription defects",
-                    requires_perception=True,
-                    requires_reasoning=True,
-                    requires_adaptive_action=False,
-                    source_evidence="Pain point inventory",
-                )
-            )
-            continue
-
-        if any(token in text for token in ["dispute", "deduction", "trade promo", "shortage"]):
-            frictions.append(
-                FrictionItem(
-                    current_manual_action=pain_point,
-                    where_in_process="Dispute / Deduction Triage",
-                    trigger_or_input_channel="Not specified",
-                    systems_or_tools_mentioned="Not specified",
-                    why_its_friction="Manual cross-system evidence reconciliation; extended dispute cycle time.",
-                    friction_type="Manual dispute triage and evidence reconciliation",
-                    proposed_path="C",
-                    rationale="Requires reasoning across invoices, POD, and policy context.",
-                    expected_kpi_shift="30-50% dispute cycle-time reduction and DSO improvement",
-                    requires_perception=True,
-                    requires_reasoning=True,
-                    requires_adaptive_action=True,
-                    source_evidence="Pain point inventory",
-                )
-            )
-            continue
-
-        if any(token in text for token in ["custom", "z-", "deviation", "non-standard", "tcode"]):
-            frictions.append(
-                FrictionItem(
-                    current_manual_action=pain_point,
-                    where_in_process="ERP Configuration / Customization",
-                    trigger_or_input_channel="Not specified",
-                    systems_or_tools_mentioned="ERP",
-                    why_its_friction="Non-standard process deviations increase support overhead and technical debt.",
-                    friction_type="ERP deviation from standard process template",
-                    proposed_path="A",
-                    rationale="Candidate for core standardization to reduce technical debt.",
-                    expected_kpi_shift="Lower support overhead and faster release velocity",
-                    requires_perception=False,
-                    requires_reasoning=False,
-                    requires_adaptive_action=False,
-                    source_evidence="Pain point inventory",
-                )
-            )
-            continue
-
-        frictions.append(
-            FrictionItem(
-                current_manual_action=pain_point,
-                where_in_process="Not specified",
-                trigger_or_input_channel="Not specified",
-                systems_or_tools_mentioned="Not specified",
-                why_its_friction="Manual repetitive task creating delay in process execution.",
-                friction_type="Deterministic coordination and status handling",
-                proposed_path="B",
-                rationale="Best handled via workflow orchestration and rule-driven automation.",
-                expected_kpi_shift="20-40% cycle-time improvement in repetitive tasks",
-                requires_perception=False,
-                requires_reasoning=False,
-                requires_adaptive_action=False,
-                source_evidence="Pain point inventory",
-            )
-        )
-
-    if frictions:
-        return frictions
-
-    # PHASE 1 must run even with sparse evidence.
-    return [
-        FrictionItem(
-            current_manual_action="Human receives mixed-format order requests and re-keys them into ERP.",
-            where_in_process="Order Intake / Data Entry",
-            trigger_or_input_channel="Mixed channels (email, portal, EDI)",
-            systems_or_tools_mentioned="ERP",
-            why_its_friction="Human acts as cognitive middleware bridging unstructured channels and core system; delay and errors.",
-            open_questions="Exact intake channels and volumes not specified in source documents.",
-            friction_type="Cognitive middleware bridging across channels and core system",
-            proposed_path="C",
-            rationale="Requires unstructured perception and adaptive handling for partial information.",
-            expected_kpi_shift="Significant reduction in manual effort and keying errors",
-            requires_perception=True,
-            requires_reasoning=True,
-            requires_adaptive_action=True,
-            source_evidence="Sparse-input fallback generated by mandatory Phase 1",
-        )
-    ]
-
-
 def _friction_items_from_state(state: dict[str, Any]) -> list[FrictionItem]:
     logs = state.get("cognitive_friction_logs", [])
     items: list[FrictionItem] = []
@@ -740,21 +634,11 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
         max_tokens=_MAX_TOKENS_ANALYSIS,
         node_label="friction_points_node",
     )
-    print(f"[friction_points_node] USING LLM OUTPUT: {len(llm_frictions)} friction items from LLM")
-    _logger.info("friction_points_node: LLM produced %d friction items", len(llm_frictions))
+    print(f"[friction_points_node] USING LLM OUTPUT: {len(llm_frictions)} friction items from LLM (GPT-5 only, no supplements)")
+    _logger.info("friction_points_node: LLM produced %d friction items (strict GPT-5 only)", len(llm_frictions))
 
-    # --- Deterministic supplements (graph-derived and pattern-based, merged into LLM output) ---
-    derived_frictions = _derive_document_friction_items(
-        raw_inputs=raw_inputs,
-        combined_text=combined_text,
-        context_region=manifest.context_region,
-    )
-    graph_derived_frictions = _derive_graph_friction_items(raw_inputs, manifest.context_region)
-    deterministic_supplements = _merge_friction_items(graph_derived_frictions, derived_frictions)
-
-    frictions = _merge_friction_items(llm_frictions, deterministic_supplements)
-    print(f"[friction_points_node] Final: {len(llm_frictions)} LLM items + {len(deterministic_supplements)} deterministic supplements")
-    _logger.info("friction_points_node: using LLM-driven analysis with deterministic supplement")
+    # Strict: use only LLM output; no deterministic supplements or fallbacks
+    frictions = llm_frictions
 
     for idx, item in enumerate(frictions, start=1):
         item.friction_id = f"P-{idx:03d}"
@@ -764,13 +648,6 @@ def friction_points_node(state: dict[str, Any], settings: Settings) -> dict[str,
     resolved_pain_points = list(manifest.pain_points)
     if not resolved_pain_points:
         resolved_pain_points = [item.current_manual_action for item in frictions]
-    elif derived_frictions:
-        existing = {point.strip().lower() for point in resolved_pain_points}
-        for item in derived_frictions:
-            action = item.current_manual_action.strip()
-            if action.lower() not in existing:
-                resolved_pain_points.append(action)
-                existing.add(action.lower())
 
     phase_status = dict(state.get("phase_status", {}))
     phase_status["phase_1_current_reality_synthesis"] = "completed"
@@ -1931,72 +1808,6 @@ def _build_visual_architecture_xml(state: dict[str, Any]) -> str:
 </VisualArchitecture>"""
 
 
-def _patch_llm_report(report: str, state: dict[str, Any], settings: Settings) -> str:
-    """Patch an LLM-generated report so it passes strict validation.
-
-    Adds missing required headings, the mandatory verbatim phrase, normalizes
-    Trust Gap heading variations, and ensures Risks section is terminal.
-    """
-    from process_reimagination_agent.validators import REQUIRED_REPORT_HEADINGS
-
-    process_name = state.get("process_name", "Process")
-    expected_title = f"# Re-Imagined Strategy Report: {process_name}"
-    if not report.startswith(expected_title):
-        report = expected_title + "\n\n" + report
-
-    # Normalize Trust Gap heading (LLMs may add quotes or parenthetical)
-    report = re.sub(
-        r'^(##\s+The\s+)["\u201c]?Trust\s+Gap["\u201d]?\s+Protocol.*$',
-        r"## The Trust Gap Protocol",
-        report,
-        flags=re.MULTILINE,
-    )
-
-    # Normalize Strategy heading variants
-    report = re.sub(
-        r"^(##\s+Strategy:\s+Layered\s+Re[-\u2010\u2011\u2012\u2013]Imagination).*$",
-        r"## Strategy: Layered Re-Imagination using Path A/B/C",
-        report,
-        flags=re.MULTILINE,
-    )
-
-    for heading in REQUIRED_REPORT_HEADINGS:
-        if heading not in report:
-            _logger.info("_patch_llm_report: injecting missing heading '%s'", heading)
-            report += f"\n\n{heading}\n\n_Section pending LLM elaboration._"
-
-    if "never embedded in the ERP kernel" not in report:
-        anchor = "## Technical Stack"
-        if anchor in report:
-            report = report.replace(
-                anchor,
-                anchor + "\n\n**Clean Core enforcement is explicit: all custom logic is isolated "
-                "in the Side-Car layer and never embedded in the ERP kernel.**\n",
-                1,
-            )
-        else:
-            report += ("\n\n**Clean Core enforcement is explicit: all custom logic is isolated "
-                       "in the Side-Car layer and never embedded in the ERP kernel.**\n")
-
-    if "Clean Core" not in report:
-        report += "\n\nThe architecture enforces Clean Core principles throughout.\n"
-    if "Side-Car" not in report and "Side Car" not in report and "BTP" not in report:
-        report += "\n\nAll custom logic resides in the SAP BTP Side-Car orchestration layer.\n"
-
-    # Ensure Risks section is the terminal ## section
-    risks_heading = "## Risks, Guardrails, and Open Questions"
-    if report.count(risks_heading) == 1:
-        parts = report.split(risks_heading, 1)
-        risks_body = parts[1].strip()
-        if "\n## " in risks_body:
-            before_next = risks_body.split("\n## ", 1)
-            risks_body = before_next[0].strip()
-            rest = "\n## " + before_next[1]
-            report = parts[0] + rest + "\n\n" + risks_heading + "\n\n" + risks_body
-
-    return report
-
-
 def _extract_process_blueprint_xml(raw_response: str) -> str | None:
     """Extract the ProcessBlueprint XML block from an LLM response.
 
@@ -2192,15 +2003,15 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
         llm_word_count = count_words(llm_response)
         print(f"[Blueprint_Node] LLM returned {llm_word_count} words (threshold: {effective_min_words})")
 
-        patched = _patch_llm_report(llm_response, state, settings)
-        patched_word_count = count_words(patched)
+        # Strict: use raw LLM output only; no patching or injection of non-LLM content
+        strategy_word_count = count_words(llm_response)
 
-        if patched_word_count >= effective_min_words:
+        if strategy_word_count >= effective_min_words:
             try:
-                validate_strategy_report(patched, min_words=effective_min_words)
-                strategy_report = patched
-                print(f"[Blueprint_Node] USING LLM-GENERATED REPORT ({patched_word_count} words, attempt {report_attempt})")
-                _logger.info("Blueprint_Node: using LLM-generated strategy report (%d words)", patched_word_count)
+                validate_strategy_report(llm_response, min_words=effective_min_words)
+                strategy_report = llm_response
+                print(f"[Blueprint_Node] USING LLM-GENERATED REPORT ({strategy_word_count} words, attempt {report_attempt}) — raw GPT-5 output only")
+                _logger.info("Blueprint_Node: using LLM-generated strategy report (%d words, raw GPT-5 only)", strategy_word_count)
                 break
             except Exception as exc:
                 _logger.warning("Blueprint_Node: LLM report failed validation (attempt %d): %s", report_attempt, exc)
@@ -2215,11 +2026,11 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
                 )
                 current_bp_prompt = bp_prompt + correction
         else:
-            _logger.warning("Blueprint_Node: LLM response too short (attempt %d): %d words < %d required", report_attempt, patched_word_count, effective_min_words)
-            print(f"[Blueprint_Node] LLM response too short (attempt {report_attempt}): {patched_word_count} words < {effective_min_words}")
+            _logger.warning("Blueprint_Node: LLM response too short (attempt %d): %d words < %d required", report_attempt, strategy_word_count, effective_min_words)
+            print(f"[Blueprint_Node] LLM response too short (attempt {report_attempt}): {strategy_word_count} words < {effective_min_words}")
             correction = (
-                f"\n\n=== CORRECTION (attempt {report_attempt}: only {patched_word_count} words) ===\n"
-                f"Your previous response was too short ({patched_word_count} words). "
+                f"\n\n=== CORRECTION (attempt {report_attempt}: only {strategy_word_count} words) ===\n"
+                f"Your previous response was too short ({strategy_word_count} words). "
                 f"The report MUST contain at least {effective_min_words} words. "
                 f"Please produce a comprehensive, detailed strategy report with all required sections fully elaborated."
             )

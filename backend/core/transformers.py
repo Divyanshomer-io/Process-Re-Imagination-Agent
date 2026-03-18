@@ -96,6 +96,10 @@ def transform_strategy_report(state: dict[str, Any]) -> str:
 
 
 def transform_blueprint(state: dict[str, Any]) -> BlueprintResponse:
+    # #region agent log
+    from pathlib import Path as _P
+    _log_path = _P(__file__).resolve().parents[3] / "debug-d79ac4.log"
+    # #endregion
     xml = state.get("mermaid_xml") or ""
     if not xml:
         xml = (state.get("refined_blueprint") or {}).get("mermaid_xml", "")
@@ -108,6 +112,12 @@ def transform_blueprint(state: dict[str, Any]) -> BlueprintResponse:
         legacy = re.search(r"<Diagram[^>]*><!\[CDATA\[(.*?)\]\]></Diagram>", xml, re.S)
         if legacy:
             mermaid_code = legacy.group(1).strip()
+        elif "<mermaid>" in xml.lower():
+            mermaid_match = re.search(r"<mermaid[^>]*>([\s\S]*?)</mermaid>", xml, re.I)
+            if mermaid_match:
+                raw = mermaid_match.group(1).strip()
+                cdata = re.search(r"<!\[CDATA\[([\s\S]*?)\]\]>", raw)
+                mermaid_code = (cdata.group(1) if cdata else raw).strip()
         elif "<Diagram" in xml:
             try:
                 import xml.etree.ElementTree as ET
@@ -125,7 +135,13 @@ def transform_blueprint(state: dict[str, Any]) -> BlueprintResponse:
         svg_path = P(render_artifact.get("svg_path", ""))
         if svg_path.exists():
             svg = svg_path.read_text(encoding="utf-8")
-
+    # #region agent log
+    try:
+        with open(_log_path, "a", encoding="utf-8") as _f:
+            _f.write(json.dumps({"sessionId":"d79ac4","location":"transformers.py:transform_blueprint","message":"Blueprint transform","data":{"mermaidLen":len(mermaid_code),"mermaidPreview":mermaid_code[:150] if mermaid_code else "","svgLen":len(svg),"xmlLen":len(xml)},"hypothesisId":"H1,H5","timestamp":__import__("time").time()*1000}) + "\n")
+    except Exception:
+        pass
+    # #endregion
     return BlueprintResponse(xml=xml, mermaid=mermaid_code, svg=svg)
 
 

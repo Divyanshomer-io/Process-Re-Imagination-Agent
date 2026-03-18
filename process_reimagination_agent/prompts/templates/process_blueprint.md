@@ -42,6 +42,15 @@ Node shapes (STRICT)
 - Decisions: {{Decision}} or {{{{Decision}}}}
 - Activities/subprocesses: [Task]
 
+Mermaid label quoting (STRICT — prevents parser errors)
+- ALL node labels that contain parentheses, commas, or special characters MUST be wrapped in double quotes.
+  Example: A1["Create Order (Path A)"]   NOT  A1[Create Order (Path A)]
+  Example: AG1["Extract & Normalize (Path C)"]   NOT  AG1[Extract & Normalize (Path C)]
+  Example: D1{{"Intent: Order / Change? (Path C)"}}   NOT  D1{{Intent: Order / Change? (Path C)}}
+- Subgraph titles MUST be wrapped in double quotes.
+  Example: subgraph External["External"]
+- Edge labels inside |...| do NOT need quoting.
+
 Path labeling (STRICT)
 Every node label must include a suffix:
 - (Path A) or (Path B) or (Path C) or (HITL)
