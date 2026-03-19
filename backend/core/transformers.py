@@ -105,11 +105,15 @@ def transform_blueprint(state: dict[str, Any]) -> BlueprintResponse:
         xml = (state.get("refined_blueprint") or {}).get("mermaid_xml", "")
 
     mermaid_code = ""
-    visual_match = re.search(r"<MermaidData><!\[CDATA\[(.*?)\]\]></MermaidData>", xml, re.S)
+    visual_match = re.search(
+        r"<MermaidData><!\[CDATA\[([\s\S]*?)\]\]></MermaidData>", xml
+    )
     if visual_match:
         mermaid_code = visual_match.group(1).strip()
     else:
-        legacy = re.search(r"<Diagram[^>]*><!\[CDATA\[(.*?)\]\]></Diagram>", xml, re.S)
+        legacy = re.search(
+            r"<Diagram[^>]*><!\[CDATA\[([\s\S]*?)\]\]></Diagram>", xml
+        )
         if legacy:
             mermaid_code = legacy.group(1).strip()
         elif "<mermaid>" in xml.lower():

@@ -21,6 +21,7 @@ from api.routes.files import router as files_router  # noqa: E402
 from api.routes.runs import router as runs_router  # noqa: E402
 from api.routes.results import router as results_router  # noqa: E402
 from api.routes.approve import router as approve_router  # noqa: E402
+from api.routes.mermaid import router as mermaid_router  # noqa: E402
 
 
 @asynccontextmanager
@@ -48,6 +49,7 @@ app.include_router(files_router)
 app.include_router(runs_router)
 app.include_router(results_router)
 app.include_router(approve_router)
+app.include_router(mermaid_router)
 
 
 @app.get("/api/health")

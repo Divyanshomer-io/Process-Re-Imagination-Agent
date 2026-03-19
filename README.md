@@ -32,6 +32,27 @@ For each run, the pipeline generates:
 5. Trust Gap checkpoint: execution pauses before `Blueprint_Node`.
 6. Manual approval (`resume`): generate final blueprint and report.
 
+## Quick Start (UI — Frontend + Backend)
+
+From the `Process-Re-Imagination-Agent` folder (repo root):
+
+1. **Install** (once):
+   ```powershell
+   .\install.ps1
+   ```
+   Or: `cd frontend` then `npm install` (or `npx pnpm install` if npm fails on OneDrive paths)
+
+2. **Run**:
+   ```powershell
+   .\run.ps1
+   ```
+   Or on Windows: `run.bat`
+
+- Backend: http://localhost:8001  
+- Frontend: http://localhost:5173  
+
+If `npm install` fails with `ENOTEMPTY` or `EPERM` (common on OneDrive), use `npx pnpm install` in the frontend folder instead.
+
 ## Repository Layout
 
 - `process_reimagination_agent/` core application code

@@ -21,6 +21,7 @@ Output requirements (STRICT)
 - Output ONLY a single XML block containing Mermaid.js code.
 - Must be valid XML and valid Mermaid.
 - Do NOT include any URLs or local file paths.
+- First line of Mermaid MUST be flowchart LR or flowchart TB (not legacy graph TD).
 
 VISUAL FORMAT REQUIREMENT (STRICT)
 Organize the diagram into exactly THREE top-level areas (subgraphs), in this order:
@@ -57,6 +58,13 @@ Every node label must include a suffix:
 
 Mermaid direction
 Use flowchart {run_layout} unless otherwise specified.
+
+Optional styling (for legibility)
+- You may use classDef to style start/end nodes for clarity (e.g. classDef start fill:#e1f5e1).
+- Avoid custom colors that conflict with themes; use subtle fills only if needed.
+
+Error-handling branches (STRICT)
+- Include explicit exception/rework paths where applicable (e.g. "Escalate to human", "Retry", "Reject").
 
 Content rules (STRICT)
 - Only include steps grounded in provided inputs.

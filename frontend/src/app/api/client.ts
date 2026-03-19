@@ -173,6 +173,44 @@ export function fetchUseCases(engagementId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Mermaid rendering (mmdc first, Kroki fallback; JSON errors for iframe)
+// ---------------------------------------------------------------------------
+
+export interface RenderMermaidResult {
+  svg: string | null;
+  error?: string;
+  fallback?: string;
+}
+
+export async function renderMermaidToSvg(code: string): Promise<RenderMermaidResult> {
+  const res = await fetch(`${BASE}/render-mermaid`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  const data = await res.json();
+  if (!res.ok) {
+    return { svg: null, error: data.detail || `Render failed: ${res.status}`, fallback: 'iframe' };
+  }
+  return {
+    svg: data.svg ?? null,
+    error: data.error ?? undefined,
+    fallback: data.fallback ?? undefined,
+  };
+}
+
+export async function getMermaidLiveUrl(code: string): Promise<string> {
+  const res = await fetch(`${BASE}/mermaid-live-url`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) throw new Error(`Failed to get Mermaid Live URL: ${res.status}`);
+  const data = await res.json();
+  return data.url ?? '';
+}
+
+// ---------------------------------------------------------------------------
 // Approval
 // ---------------------------------------------------------------------------
 
