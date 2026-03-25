@@ -1,6 +1,6 @@
 /**
  * Integrated Vite config — extends the base config with:
- *   1. API proxy to the FastAPI backend on localhost:8000
+ *   1. API proxy to the FastAPI backend on 127.0.0.1:8001 (matches run.ps1 / run.bat)
  *   2. Module aliases that redirect mock data / mock store imports
  *      to their API-connected replacements.
  *
@@ -34,7 +34,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
     },

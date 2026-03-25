@@ -44,7 +44,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        // 127.0.0.1: avoids Windows resolving `localhost` to ::1 while the API listens on IPv4.
+        target: 'http://127.0.0.1:8001',
         changeOrigin: true,
       },
     },
