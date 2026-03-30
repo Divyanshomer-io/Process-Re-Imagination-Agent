@@ -40,6 +40,7 @@ async def get_friction(engagement_id: str):
         state.get("cognitive_friction_logs", []),
         state.get("evidence_references"),
         state.get("pain_points"),
+        state.get("path_decisions"),
     )
 
 

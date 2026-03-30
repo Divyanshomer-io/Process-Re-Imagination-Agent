@@ -144,7 +144,7 @@ def _extract_excerpt(content: str, start: int, end: int, max_len: int = 180) -> 
     return _compact_text(content[window_start:window_end], max_len=max_len)
 
 
-def _collect_document_references(raw_inputs: dict[str, Any], max_refs: int = 12) -> list[dict[str, str]]:
+def _collect_document_references(raw_inputs: dict[str, Any], max_refs: int = 20) -> list[dict[str, str]]:
     refs: list[dict[str, str]] = []
     for idx, doc in enumerate(raw_inputs.get("documents", []), start=1):
         content = str(doc.get("content", ""))
@@ -156,7 +156,7 @@ def _collect_document_references(raw_inputs: dict[str, Any], max_refs: int = 12)
                 "id": f"DOC{idx}",
                 "source": Path(path).name if path else f"document_{idx}",
                 "path": path,
-                "excerpt": _compact_text(content, max_len=220),
+                "excerpt": _compact_text(content, max_len=500),
             }
         )
         if len(refs) >= max_refs:
@@ -491,11 +491,24 @@ def _merge_friction_items(primary: list[FrictionItem], secondary: list[FrictionI
 def _friction_items_from_state(state: dict[str, Any]) -> list[FrictionItem]:
     logs = state.get("cognitive_friction_logs", [])
     items: list[FrictionItem] = []
+    skipped = 0
     for log in logs:
         try:
             items.append(FrictionItem.model_validate(log))
-        except Exception:
+        except Exception as exc:
+            skipped += 1
+            fid = log.get("friction_id", "unknown") if isinstance(log, dict) else "unknown"
+            _logger.warning(
+                "_friction_items_from_state: dropped friction item %s due to validation error: %s",
+                fid, exc,
+            )
             continue
+    if skipped:
+        _logger.warning(
+            "_friction_items_from_state: dropped %d/%d friction items due to validation errors",
+            skipped, len(logs),
+        )
+        print(f"[WARNING] {skipped}/{len(logs)} friction items dropped during validation — check logs for details")
     if items:
         return items
     raise ValueError(
@@ -525,6 +538,46 @@ def _decision_confidence(item: FrictionItem, iteration_count: int, evidence_pena
     if evidence_penalty:
         base -= 0.05
     return max(0.50, min(0.99, base))
+
+
+_PERCEPTION_KEYWORDS = frozenset({
+    "unstructured", "extract", "extraction", "pdf", "email", "fax", "free text",
+    "freetext", "free-text", "ocr", "scan", "handwritten", "image", "attachment",
+    "parse", "parsing", "interpret", "natural language", "nlp", "read",
+    "document", "invoice", "receipt",
+})
+
+_REASONING_KEYWORDS = frozenset({
+    "reason", "reasoning", "judgment", "judgement", "trade-off", "tradeoff",
+    "multi-step", "multistep", "analysis", "analyze", "evaluate", "evaluation",
+    "decision", "decide", "interpret", "interpretation", "contextual",
+    "ambiguous", "ambiguity", "complex", "inference", "infer", "classify",
+    "prioritize", "prioritization", "triage", "assess", "assessment",
+    "reconcil", "cross-reference", "match", "matching",
+})
+
+_ADAPTIVE_KEYWORDS = frozenset({
+    "adaptive", "exception", "dynamic", "planning", "re-plan", "replan",
+    "escalat", "fallback", "contingency", "unexpected", "anomaly", "anomalies",
+    "variable", "variability", "unpredictable", "ad hoc", "ad-hoc", "adhoc",
+    "case-by-case", "edge case", "deviation", "deviate", "real-time",
+    "real time", "realtime", "recover", "recovery", "reroute", "re-route",
+})
+
+
+def _detect_perception(practice_text: str, why_it_matters: str) -> bool:
+    combined = (practice_text + " " + why_it_matters).lower()
+    return any(kw in combined for kw in _PERCEPTION_KEYWORDS)
+
+
+def _detect_reasoning(why_it_matters: str) -> bool:
+    text = why_it_matters.lower()
+    return any(kw in text for kw in _REASONING_KEYWORDS)
+
+
+def _detect_adaptive_action(why_it_matters: str) -> bool:
+    text = why_it_matters.lower()
+    return any(kw in text for kw in _ADAPTIVE_KEYWORDS)
 
 
 def _parse_llm_friction_table(raw_response: str, context_region: str) -> list[FrictionItem]:
@@ -569,15 +622,16 @@ def _parse_llm_friction_table(raw_response: str, context_region: str) -> list[Fr
                     why_its_friction=why_it_matters,
                     open_questions=_cell(9, ""),
                     friction_type=why_it_matters or "LLM-identified pain point",
-                    proposed_path="C" if any(
-                        kw in why_it_matters.lower()
-                        for kw in ["perception", "reasoning", "unstructured", "contextual"]
+                    proposed_path="C" if (
+                        _detect_perception(practice_text, why_it_matters)
+                        or _detect_reasoning(why_it_matters)
+                        or _detect_adaptive_action(why_it_matters)
                     ) else "B",
                     rationale=f"LLM-identified: {why_it_matters}" if why_it_matters else "LLM-identified pain point",
                     expected_kpi_shift="To be assessed",
-                    requires_perception="unstructured" in (practice_text + why_it_matters).lower(),
-                    requires_reasoning="reason" in why_it_matters.lower() or "judgment" in why_it_matters.lower(),
-                    requires_adaptive_action="adaptive" in why_it_matters.lower() or "exception" in why_it_matters.lower(),
+                    requires_perception=_detect_perception(practice_text, why_it_matters),
+                    requires_reasoning=_detect_reasoning(why_it_matters),
+                    requires_adaptive_action=_detect_adaptive_action(why_it_matters),
                     source_evidence=_cell(8, ""),
                 )
             )
@@ -719,6 +773,13 @@ def _parse_llm_refined_items(raw_response: str, original_items: list[FrictionIte
             base["requires_reasoning"] = entry["requires_reasoning"]
         if isinstance(entry.get("requires_adaptive_action"), bool):
             base["requires_adaptive_action"] = entry["requires_adaptive_action"]
+
+        practice = base.get("current_manual_action", "")
+        why = base.get("why_its_friction", "")
+        base["requires_perception"] = base.get("requires_perception", False) or _detect_perception(practice, why)
+        base["requires_reasoning"] = base.get("requires_reasoning", False) or _detect_reasoning(why)
+        base["requires_adaptive_action"] = base.get("requires_adaptive_action", False) or _detect_adaptive_action(why)
+
         refined_lookup[fid] = base
 
     if skipped:
@@ -794,6 +855,28 @@ _CONFIDENCE_LABEL_TO_FLOAT: dict[str, float] = {
 
 
 
+def _normalize_friction_id(raw_id: str) -> str:
+    """Normalize friction IDs so P-1, P-01, and P-001 all map to P-001."""
+    raw_id = raw_id.strip()
+    match = re.match(r"^([A-Za-z]+)-?(\d+)$", raw_id)
+    if match:
+        prefix = match.group(1).upper()
+        number = int(match.group(2))
+        return f"{prefix}-{number:03d}"
+    return raw_id
+
+
+def _build_friction_lookup(friction_items: list[FrictionItem]) -> dict[str, FrictionItem]:
+    """Build a lookup by both canonical and normalized friction IDs."""
+    lookup: dict[str, FrictionItem] = {}
+    for item in friction_items:
+        lookup[item.friction_id] = item
+        normalized = _normalize_friction_id(item.friction_id)
+        if normalized != item.friction_id:
+            lookup[normalized] = item
+    return lookup
+
+
 def _parse_llm_classifications(
     raw_response: str,
     friction_items: list[FrictionItem],
@@ -807,7 +890,7 @@ def _parse_llm_classifications(
 
     Falls back to JSON parsing if no table is detected.
     """
-    friction_lookup = {item.friction_id: item for item in friction_items}
+    friction_lookup = _build_friction_lookup(friction_items)
 
     # Try table parsing first (new Prompt 2 output format)
     table_results = _parse_classification_table(raw_response, friction_lookup)
@@ -836,10 +919,11 @@ def _parse_llm_classifications(
     skipped = 0
     for entry in classifications:
         fid = str(entry.get("friction_id", "") or entry.get("item_id", "") or entry.get("Item_ID", ""))
-        item = friction_lookup.get(fid)
+        item = friction_lookup.get(fid) or friction_lookup.get(_normalize_friction_id(fid))
         if item is None:
             skipped += 1
             continue
+        fid = item.friction_id
         recommended = str(entry.get("recommended_path", "") or entry.get("Recommended_Path", "")).strip().upper()
         if recommended not in {"A", "B", "C"}:
             skipped += 1
@@ -894,10 +978,11 @@ def _parse_classification_table(
                 return cells[idx] if idx < len(cells) else default
 
             fid = _cell(0).strip()
-            item = friction_lookup.get(fid)
+            item = friction_lookup.get(fid) or friction_lookup.get(_normalize_friction_id(fid))
             if item is None:
                 skipped += 1
                 continue
+            fid = item.friction_id
             recommended = _cell(1).strip().upper()
             if recommended not in {"A", "B", "C"}:
                 skipped += 1
@@ -924,10 +1009,75 @@ def _parse_classification_table(
         return None
 
 
-def _apply_guardrail(path: str, item: FrictionItem) -> str:
-    """Enforce the strict suitability rule: Path C requires perception/reasoning/adaptive action."""
-    if path == "C" and not (item.requires_perception or item.requires_reasoning or item.requires_adaptive_action):
-        return "B"
+def _apply_guardrail(path: str, item: FrictionItem, llm_justification: str = "") -> str:
+    """Enforce the strict suitability rule: Path C requires perception/reasoning/adaptive action.
+
+    Checks both:
+    1. Keyword flags set during Prompt 1 friction parsing
+    2. The LLM's suitability justification text from Prompt 2
+
+    If either source confirms perception/reasoning/adaptive action, Path C is retained.
+    """
+    if path != "C":
+        return path
+
+    if item.requires_perception or item.requires_reasoning or item.requires_adaptive_action:
+        return "C"
+
+    if llm_justification:
+        justification_lower = llm_justification.lower()
+        if (
+            any(kw in justification_lower for kw in _PERCEPTION_KEYWORDS)
+            or any(kw in justification_lower for kw in _REASONING_KEYWORDS)
+            or any(kw in justification_lower for kw in _ADAPTIVE_KEYWORDS)
+        ):
+            _logger.info(
+                "Guardrail KEPT Path C for %s based on LLM justification (flags were False): '%s'",
+                item.friction_id, llm_justification[:120],
+            )
+            return "C"
+
+    _logger.info(
+        "Guardrail override: %s Path C -> B (perception=%s, reasoning=%s, adaptive=%s, action='%s', justification='%s')",
+        item.friction_id, item.requires_perception, item.requires_reasoning,
+        item.requires_adaptive_action, item.current_manual_action[:60], llm_justification[:80],
+    )
+    return "B"
+
+
+_PROMOTION_PHRASES = frozenset({
+    "requires perception", "require perception", "requiring perception",
+    "needs perception", "perception to extract", "perception to triage",
+    "perception to parse", "perception to read", "perception to interpret",
+    "requires reasoning", "require reasoning", "requiring reasoning",
+    "needs reasoning", "reasoning to", "multi-step judgment",
+    "trade-off analysis", "contextual evaluation",
+    "requires adaptive", "require adaptive", "adaptive action",
+    "dynamic exception", "exception handling",
+    "unstructured email", "unstructured content", "unstructured input",
+    "unstructured data", "unstructured source",
+    "ocr", "free text", "freetext", "free-text",
+    "extract order data", "extract data from",
+    "perception (ocr", "perception and judgment", "perception and reasoning",
+    "perception to automate", "perception + reasoning",
+})
+
+
+def _maybe_promote_to_c(path: str, justification: str, item: FrictionItem) -> str:
+    """Promote Path B to Path C when the LLM's own justification explicitly mentions
+    perception, reasoning, or adaptive action being required — correcting
+    self-contradictory LLM outputs where the rationale says 'requires perception'
+    but the path is B."""
+    if path != "B":
+        return path
+    justification_lower = justification.lower()
+    for phrase in _PROMOTION_PHRASES:
+        if phrase in justification_lower:
+            _logger.info(
+                "Promotion: %s B -> C (justification contains '%s'): '%s'",
+                item.friction_id, phrase, justification[:120],
+            )
+            return "C"
     return path
 
 
@@ -953,10 +1103,15 @@ def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str,
 
     friction_logs = state.get("cognitive_friction_logs", [])
     evidence_refs = list(state.get("evidence_references", []))
-    rendered_prompt = render_path_classifier_prompt(friction_logs, evidence_refs)
 
-    print(f"[path_classifier_node] Calling LLM for path classification ({len(friction_items)} friction items)...")
-    _logger.info("path_classifier_node: calling LLM for path classification (%d friction items)...", len(friction_items))
+    combined_text = state.get("raw_inputs", {}).get("combined_text", "")
+    doc_text_for_prompt = combined_text[:_MAX_DOCUMENT_CHARS] if combined_text else ""
+    rendered_prompt = render_path_classifier_prompt(
+        friction_logs, evidence_refs, document_text=doc_text_for_prompt,
+    )
+
+    print(f"[path_classifier_node] Calling LLM for path classification ({len(friction_items)} friction items, {len(doc_text_for_prompt)} chars of document text)...")
+    _logger.info("path_classifier_node: calling LLM for path classification (%d friction items, %d chars doc text)...", len(friction_items), len(doc_text_for_prompt))
 
     def _parse_classifications(raw: str) -> list[dict[str, Any]] | None:
         return _parse_llm_classifications(raw, friction_items)
@@ -969,22 +1124,42 @@ def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str,
         max_tokens=_MAX_TOKENS_ANALYSIS,
         node_label="path_classifier_node",
     )
-    print(f"[path_classifier_node] USING LLM OUTPUT: {len(llm_classifications)} classifications parsed successfully")
-    _logger.info("path_classifier_node: using LLM-driven classification")
+    llm_path_counts = {"A": 0, "B": 0, "C": 0}
+    for entry in llm_classifications:
+        p = entry.get("recommended_path", "")
+        if p in llm_path_counts:
+            llm_path_counts[p] += 1
+    print(
+        f"[path_classifier_node] USING LLM OUTPUT: {len(llm_classifications)} classifications parsed "
+        f"(LLM said: A={llm_path_counts['A']}, B={llm_path_counts['B']}, C={llm_path_counts['C']})"
+    )
+    _logger.info(
+        "path_classifier_node: LLM classification: A=%d, B=%d, C=%d (of %d parsed)",
+        llm_path_counts["A"], llm_path_counts["B"], llm_path_counts["C"], len(llm_classifications),
+    )
 
     llm_map: dict[str, dict[str, Any]] = {}
     for entry in llm_classifications:
         llm_map[entry["friction_id"]] = entry
 
     path_decisions: list[dict[str, Any]] = []
+    promotions = 0
     for item in friction_items:
         llm_entry = llm_map.get(item.friction_id)
         if llm_entry:
-            path = _apply_guardrail(llm_entry["recommended_path"], item)
+            justification = llm_entry.get("suitability_justification", "")
+            raw_path = llm_entry["recommended_path"]
+            path = _apply_guardrail(raw_path, item, llm_justification=justification)
+
+            if path == "B" and justification:
+                path = _maybe_promote_to_c(path, justification, item)
+                if path == "C":
+                    promotions += 1
+
             confidence_label = llm_entry["confidence"].strip().lower()
             confidence = _CONFIDENCE_LABEL_TO_FLOAT.get(confidence_label, 0.90)
             rationale = (
-                f"{llm_entry['suitability_justification']} "
+                f"{justification} "
                 "Classified via mandatory Phase 2 suitability assessment."
             )
         else:
@@ -1014,6 +1189,18 @@ def path_classifier_node(state: dict[str, Any], settings: Settings) -> dict[str,
             channel=state.get("raw_inputs", {}).get("channel", ""),
         )
         path_decisions.append(decision)
+
+    if promotions:
+        print(f"[path_classifier_node] Promoted {promotions} items from B -> C (LLM justification confirmed perception/reasoning/adaptive)")
+        _logger.info("path_classifier_node: promoted %d items B -> C based on justification text", promotions)
+
+    path_counts = {"A": 0, "B": 0, "C": 0}
+    for d in path_decisions:
+        p = d.get("path", "B")
+        if p in path_counts:
+            path_counts[p] += 1
+    print(f"[path_classifier_node] FINAL PATH DISTRIBUTION: A={path_counts['A']}, B={path_counts['B']}, C={path_counts['C']} (total {len(path_decisions)})")
+    _logger.info("path_classifier_node: final path distribution: A=%d, B=%d, C=%d", path_counts["A"], path_counts["B"], path_counts["C"])
 
     overall_confidence = mean([d["confidence"] for d in path_decisions]) if path_decisions else 0.0
     if "force_confidence_override" in state:
@@ -1889,8 +2076,10 @@ def _generate_use_case_cards(state: dict[str, Any], settings: Settings, strategy
             print(f"[Blueprint_Node] LLM use case cards failed validation (attempt {attempt}): {exc}")
             correction = (
                 f"\n\n=== CORRECTION (attempt {attempt} failed: {exc}) ===\n"
-                f"Your previous JSON output failed validation. Return ONLY a valid JSON array "
-                f"of use case card objects. No markdown fences, no prose, no explanation."
+                f"Your previous JSON output failed validation. Return ONLY a valid JSON object "
+                f"with 'process_name' and 'use_case_cards' (non-empty array) fields. "
+                f"Each card must have: use_case_id, title, path (A/B/C), sap_target, mechanism, evidence. "
+                f"No markdown fences, no prose, no explanation — raw JSON only."
             )
             current_prompt = ucc_prompt + correction
             if attempt < _LLM_PARSE_MAX_RETRIES:
@@ -2069,11 +2258,19 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
                 print(f"[Blueprint_Node] LLM report failed validation (attempt {report_attempt}): {exc}")
                 correction = (
                     f"\n\n=== CORRECTION (attempt {report_attempt} failed validation: {exc}) ===\n"
-                    f"Your previous report failed validation. Please ensure all required sections are present "
-                    f"and the report has at least {effective_min_words} words. Include these mandatory sections: "
-                    f"Executive Summary, Current Reality Synthesis, Strategy: Layered Re-Imagination using Path A/B/C, "
-                    f"Architecture of the Future State, Technical Stack, The Trust Gap Protocol, "
-                    f"Risks Guardrails and Open Questions. Include the phrase 'never embedded in the ERP kernel'."
+                    f"Your previous report failed validation. The EXACT error was: {exc}\n"
+                    f"You MUST use these EXACT Markdown headings (case-sensitive, with ##):\n"
+                    f"  ## Executive Summary\n"
+                    f"  ## Current Reality Synthesis\n"
+                    f"  ## Strategy: Layered Re-Imagination\n"
+                    f"  ## Architecture of the Future State\n"
+                    f"  ## Technical Stack\n"
+                    f"  ## The Trust Gap Protocol\n"
+                    f"  ## Risks, Guardrails, and Open Questions\n"
+                    f"The 'Risks, Guardrails, and Open Questions' section must appear EXACTLY once and be the LAST section.\n"
+                    f"You MUST include the phrases 'Clean Core', 'Side-Car' or 'BTP', and "
+                    f"'never embedded in the ERP kernel' somewhere in the report.\n"
+                    f"The report must have at least {effective_min_words} words."
                 )
                 current_bp_prompt = bp_prompt + correction
         else:
@@ -2082,8 +2279,18 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
             correction = (
                 f"\n\n=== CORRECTION (attempt {report_attempt}: only {strategy_word_count} words) ===\n"
                 f"Your previous response was too short ({strategy_word_count} words). "
-                f"The report MUST contain at least {effective_min_words} words. "
-                f"Please produce a comprehensive, detailed strategy report with all required sections fully elaborated."
+                f"The report MUST contain at least {effective_min_words} words.\n"
+                f"You MUST use these EXACT Markdown headings (case-sensitive, with ##):\n"
+                f"  ## Executive Summary\n"
+                f"  ## Current Reality Synthesis\n"
+                f"  ## Strategy: Layered Re-Imagination\n"
+                f"  ## Architecture of the Future State\n"
+                f"  ## Technical Stack\n"
+                f"  ## The Trust Gap Protocol\n"
+                f"  ## Risks, Guardrails, and Open Questions\n"
+                f"Include the phrases 'Clean Core', 'Side-Car' or 'BTP', and "
+                f"'never embedded in the ERP kernel'.\n"
+                f"Produce a comprehensive, detailed strategy report with all sections fully elaborated."
             )
             current_bp_prompt = bp_prompt + correction
 
@@ -2091,9 +2298,15 @@ def Blueprint_Node(state: dict[str, Any], settings: Settings) -> dict[str, Any]:
             time.sleep(_LLM_PARSE_RETRY_BACKOFF * report_attempt)
 
     if not strategy_report:
+        last_validation_error = ""
+        try:
+            validate_strategy_report(llm_response, min_words=effective_min_words)
+        except ValueError as ve:
+            last_validation_error = str(ve)
         raise RuntimeError(
             f"[Blueprint_Node] All {_LLM_PARSE_MAX_RETRIES} strategy report LLM attempts failed. "
-            f"Last response had {count_words(llm_response)} words (needed {effective_min_words})."
+            f"Last response had {count_words(llm_response)} words (needed {effective_min_words}). "
+            f"Last validation error: {last_validation_error or 'unknown'}"
         )
 
     # --- LLM-powered use case cards (Prompt 4: JSON, with retries) ---

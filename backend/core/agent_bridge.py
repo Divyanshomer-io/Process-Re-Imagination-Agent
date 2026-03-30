@@ -180,7 +180,9 @@ def _write_final_outputs(settings: Settings, thread_id: str, state: dict[str, An
     (output_dir / "process_blueprint.xml").write_text(xml, encoding="utf-8")
 
     mermaid_code = ""
-    mermaid_match = re.search(r"<MermaidData><!\[CDATA\[(.*?)\]\]></MermaidData>", xml, re.S)
+    mermaid_match = re.search(r"<MermaidData>\s*<!\[CDATA\[(.*?)\]\]>\s*</MermaidData>", xml, re.S)
+    if not mermaid_match:
+        mermaid_match = re.search(r"<Diagram[^>]*>\s*<!\[CDATA\[(.*?)\]\]>\s*</Diagram>", xml, re.S)
     if mermaid_match:
         mermaid_code = mermaid_match.group(1).strip()
         (output_dir / "process_blueprint.mmd").write_text(mermaid_code, encoding="utf-8")

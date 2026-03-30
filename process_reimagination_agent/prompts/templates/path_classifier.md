@@ -13,19 +13,21 @@ Classify each Item_ID into exactly one SAP-specific path:
   Deterministic automation such as workflows, routing, validations, integrations, and orchestration on SAP BTP.
 
 - Path C (Agentic AI Deployment — SAP Joule / GenAI):
-  Assign ONLY if the task requires at least one:
-    1) Perception (unstructured reading/extraction: emails, PDFs, fax, free text),
-    2) Reasoning (trade-off analysis, multi-step judgment),
-    3) Adaptive Action (dynamic exception handling/planning).
+  Assign if the task requires at least one:
+    1) Perception (reading/extracting from unstructured sources: emails, PDFs, fax, free text, scans, OCR, invoices, attachments, natural language parsing, document interpretation),
+    2) Reasoning (trade-off analysis, multi-step judgment, contextual evaluation, ambiguity resolution, prioritization, triage, assessment, reconciliation, cross-referencing, matching, classification, inference),
+    3) Adaptive Action (dynamic exception handling, planning, escalation, fallback, contingency, anomaly detection, case-by-case decisions, real-time recovery, rerouting, ad hoc workflows, deviation handling).
+  IMPORTANT: Carefully read the source documents below to determine whether a friction point truly involves perception, reasoning, or adaptive action — do not rely solely on the summary table.
 
 Inputs
 You will receive:
 1) "Pain Points & Opportunities (A/B/C Candidates)" table from Prompt 1
 2) The same source documents (for evidence cross-check)
 
-Suitability Rule (STRICT)
-Assign Path C ONLY if Perception or Reasoning or Adaptive Action is required.
-If not, prefer Path B or Path A.
+Suitability Rule
+Assign Path C when Perception, Reasoning, or Adaptive Action is genuinely required based on the source documents.
+If the task is purely rule-based/deterministic, prefer Path B or Path A.
+When in doubt, review the source document text provided below and assign Path C if the evidence supports it.
 
 Output (STRICT)
 Produce ONLY a table titled "Path Classification (A/B/C) — SAP".

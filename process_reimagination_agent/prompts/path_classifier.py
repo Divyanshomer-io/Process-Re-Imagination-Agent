@@ -90,7 +90,7 @@ def _format_evidence_register(evidence_references: list[dict[str, str]]) -> str:
             "- [{id}] {source}: {excerpt}".format(
                 id=ref.get("id", "N/A"),
                 source=ref.get("source", "N/A"),
-                excerpt=str(ref.get("excerpt", ""))[:220],
+                excerpt=str(ref.get("excerpt", ""))[:500],
             )
         )
     return "\n".join(lines)
@@ -99,10 +99,22 @@ def _format_evidence_register(evidence_references: list[dict[str, str]]) -> str:
 def render_path_classifier_prompt(
     friction_items: list[dict[str, Any]],
     evidence_references: list[dict[str, str]],
+    document_text: str = "",
 ) -> str:
-    """Build the complete path-classifier LLM prompt with friction data injected."""
+    """Build the complete path-classifier LLM prompt with friction data injected.
+
+    When *document_text* is provided, appends the full source text so the LLM
+    can cross-check evidence and properly assess perception/reasoning/adaptive
+    action suitability for Path C classification.
+    """
     template = get_path_classifier_prompt()
-    return template.format(
+    rendered = template.format(
         friction_table=_format_friction_table(friction_items),
         evidence_register=_format_evidence_register(evidence_references),
     )
+    if document_text.strip():
+        rendered += (
+            "\n\n=== SOURCE DOCUMENT TEXT (for evidence cross-check) ===\n"
+            + document_text
+        )
+    return rendered

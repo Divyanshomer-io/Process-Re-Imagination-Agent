@@ -26,10 +26,17 @@ def transform_friction_logs(
     cognitive_friction_logs: list[dict[str, Any]],
     evidence_references: list[dict[str, Any]] | None = None,
     pain_points: list[str] | None = None,
+    path_decisions: list[dict[str, Any]] | None = None,
 ) -> list[FrictionItemResponse]:
     evidence_refs = evidence_references or []
-    items: list[FrictionItemResponse] = []
 
+    decision_path_by_action: dict[str, str] = {}
+    for dec in (path_decisions or []):
+        action_key = str(dec.get("current_manual_action", "")).strip().lower()
+        if action_key:
+            decision_path_by_action[action_key] = dec.get("path", "B")
+
+    items: list[FrictionItemResponse] = []
     for log in cognitive_friction_logs:
         friction_id = log.get("friction_id", "")
 
@@ -50,6 +57,9 @@ def transform_friction_logs(
         if not related_pain and pain_points:
             related_pain = pain_points[:2]
 
+        action_key = str(log.get("current_manual_action", "")).strip().lower()
+        final_path = decision_path_by_action.get(action_key, log.get("proposed_path", "B"))
+
         items.append(FrictionItemResponse(
             id=friction_id or f"F{len(items)+1:03d}",
             manualAction=log.get("current_manual_action", ""),
@@ -61,7 +71,7 @@ def transform_friction_logs(
             evidenceCount=len(evidence_files),
             relatedPainPoints=related_pain,
             evidence=evidence_files,
-            pathClassification=log.get("proposed_path", "B"),
+            pathClassification=final_path,
         ))
     return items
 
@@ -106,13 +116,13 @@ def transform_blueprint(state: dict[str, Any]) -> BlueprintResponse:
 
     mermaid_code = ""
     visual_match = re.search(
-        r"<MermaidData><!\[CDATA\[([\s\S]*?)\]\]></MermaidData>", xml
+        r"<MermaidData>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*</MermaidData>", xml
     )
     if visual_match:
         mermaid_code = visual_match.group(1).strip()
     else:
         legacy = re.search(
-            r"<Diagram[^>]*><!\[CDATA\[([\s\S]*?)\]\]></Diagram>", xml
+            r"<Diagram[^>]*>\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*</Diagram>", xml
         )
         if legacy:
             mermaid_code = legacy.group(1).strip()
@@ -191,6 +201,9 @@ def transform_use_cases(state: dict[str, Any]) -> list[UseCaseResponse]:
 
         items.append(UseCaseResponse(
             id=card.get("use_case_id", card.get("id", f"UC{len(items)+1:03d}")),
+            title=card.get("title", card.get("use_case_id", "")),
+            path=card.get("path", "B"),
+            sapTarget=card.get("sap_target", ""),
             context=ctx_str,
             agentRole=card.get("agent_role_or_owner", card.get("agentRole", "")),
             mechanism=mechanism,

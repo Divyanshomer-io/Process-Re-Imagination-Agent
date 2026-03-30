@@ -116,6 +116,9 @@ class PathItemResponse(BaseModel):
 class UseCaseResponse(BaseModel):
     """Matches the UI's mockUseCases element shape."""
     id: str
+    title: str
+    path: Literal["A", "B", "C"] | str
+    sapTarget: str
     context: str
     agentRole: str
     mechanism: str

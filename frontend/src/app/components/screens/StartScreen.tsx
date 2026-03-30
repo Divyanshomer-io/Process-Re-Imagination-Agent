@@ -162,7 +162,7 @@ export function StartScreen() {
         <div className="flex items-center justify-center gap-3 flex-wrap max-w-3xl mx-auto">
           <FeaturePill text="Path A/B/C Classification" />
           <FeaturePill text="Cognitive Friction Analysis" />
-          <FeaturePill text="Use Case Generation" />
+          <FeaturePill text="AI Agent Cards" />
           <FeaturePill text="Process Blueprints" />
         </div>
       </div>

@@ -27,7 +27,7 @@ export function Phase3Results() {
             Process Blueprint
           </TabsTrigger>
           <TabsTrigger value="usecases" className="rounded-none border-b-2 border-transparent data-[state=active]:border-accent">
-            Use Case Cards
+            AI Agent Cards
           </TabsTrigger>
         </TabsList>
 

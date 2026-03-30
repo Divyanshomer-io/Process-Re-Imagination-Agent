@@ -65,6 +65,9 @@ export interface PathItem {
 
 export interface UseCase {
   id: string;
+  title?: string;
+  path?: 'A' | 'B' | 'C';
+  sapTarget?: string;
   context: string;
   agentRole: string;
   mechanism: string;

@@ -86,12 +86,13 @@ def _call_daia(
         "model": "gpt-5",
         "messages": messages,
         "max_tokens": effective_max_tokens,
+        "temperature": settings.model_temperature,
     }
 
     for attempt in range(2):
         token = _generate_daia_token(settings)
         headers = {"Authorization": f"Bearer {token}"}
-        _logger.info("DAIA request: model=gpt-5 (strict), max_tokens=%s, attempt=%d", body["max_tokens"], attempt + 1)
+        _logger.info("DAIA request: model=gpt-5 (strict), max_tokens=%s, temperature=%s, attempt=%d", body["max_tokens"], body["temperature"], attempt + 1)
         resp = requests.post(
             url,
             json=body,

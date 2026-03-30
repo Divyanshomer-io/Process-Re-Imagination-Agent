@@ -11,8 +11,10 @@ export function UseCaseCardsTab() {
   const useCasesData = useResultsStore((s) => s.useCases);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const filteredUseCases = (useCasesData.length > 0 ? useCasesData : mockUseCases).filter(useCase => 
+  const allUseCases = useCasesData.length > 0 ? useCasesData : mockUseCases;
+  const filteredUseCases = allUseCases.filter(useCase => 
     useCase.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (useCase.title ?? "").toLowerCase().includes(searchTerm.toLowerCase()) ||
     useCase.context.toLowerCase().includes(searchTerm.toLowerCase()) ||
     useCase.agentRole.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -23,7 +25,7 @@ export function UseCaseCardsTab() {
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search use cases…"
+            placeholder="Search AI agent cards…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
@@ -38,9 +40,29 @@ export function UseCaseCardsTab() {
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <span>{useCase.id}</span>
+                  {useCase.path && (
+                    <span
+                      className="text-xs font-medium px-2 py-0.5 rounded"
+                      style={{
+                        background: useCase.path === "C" ? "#dbeafe" : useCase.path === "B" ? "#fef3c7" : "#d1fae5",
+                        color: useCase.path === "C" ? "#1e40af" : useCase.path === "B" ? "#92400e" : "#065f46",
+                      }}
+                    >
+                      Path {useCase.path}
+                    </span>
+                  )}
                 </CardTitle>
+                {useCase.title && (
+                  <p className="text-sm text-muted-foreground mt-1">{useCase.title}</p>
+                )}
               </CardHeader>
               <CardContent className="flex-1 space-y-4">
+                {useCase.sapTarget && (
+                  <div>
+                    <h4 className="mb-1">SAP Target</h4>
+                    <p className="text-[var(--text-caption)] text-muted-foreground">{useCase.sapTarget}</p>
+                  </div>
+                )}
                 <div>
                   <h4 className="mb-1">Context</h4>
                   <p className="text-[var(--text-caption)] text-muted-foreground">{useCase.context}</p>
@@ -73,7 +95,7 @@ export function UseCaseCardsTab() {
         </div>
       ) : (
         <div className="text-center py-12 text-muted-foreground">
-          No use case cards generated.
+          No AI agent cards generated.
         </div>
       )}
     </div>

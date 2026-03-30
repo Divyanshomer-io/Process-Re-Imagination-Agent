@@ -311,23 +311,51 @@ ${svgContent ? `<div>${svgContent}</div>` : `<pre style="white-space:pre-wrap;fo
                 )}
                 {renderLoading ? (
                   <div className="text-muted-foreground py-12">Rendering diagram…</div>
-                ) : mermaidLiveUrl ? (
-                  <iframe
-                    src={mermaidLiveUrl}
-                    title="Process Blueprint (Mermaid Live)"
-                    sandbox="allow-scripts"
-                    style={{ width: "100%", minHeight: 480, border: "none" }}
-                  />
                 ) : renderedSvg && isSvg(renderedSvg) ? (
                   <div dangerouslySetInnerHTML={{ __html: renderedSvg }} style={{ maxWidth: "none" }} />
-                ) : renderError ? (
-                  <div className="space-y-3">
-                    <p className="text-destructive text-sm">{renderError}</p>
-                    <p className="text-muted-foreground text-sm">
-                      Try viewing XML or ensure the backend is running.
-                    </p>
+                ) : mermaidLiveUrl ? (
+                  <div className="w-full space-y-4">
+                    <iframe
+                      src={mermaidLiveUrl}
+                      title="Process Blueprint (Mermaid Live)"
+                      sandbox="allow-scripts"
+                      style={{ width: "100%", minHeight: 480, border: "none" }}
+                    />
+                    <details className="mt-4">
+                      <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                        Show Mermaid Code
+                      </summary>
+                      <pre className="mt-2 whitespace-pre-wrap font-mono text-xs bg-muted p-4 rounded-[var(--radius)] overflow-auto max-h-96">
+                        {sanitizedCode}
+                      </pre>
+                    </details>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="w-full space-y-3">
+                    {renderError && (
+                      <div
+                        className="px-4 py-2 rounded-md text-sm"
+                        style={{
+                          background: "#fef2f2",
+                          border: "1px solid #ef4444",
+                          color: "#991b1b",
+                        }}
+                      >
+                        Diagram rendering failed: {renderError}
+                      </div>
+                    )}
+                    <p className="text-muted-foreground text-sm">
+                      Mermaid code is shown below. You can copy it and paste into{" "}
+                      <a href="https://mermaid.live" target="_blank" rel="noopener noreferrer" className="underline">
+                        mermaid.live
+                      </a>{" "}
+                      to visualize.
+                    </p>
+                    <pre className="whitespace-pre-wrap font-mono text-xs bg-muted p-4 rounded-[var(--radius)] overflow-auto max-h-[600px]">
+                      {sanitizedCode}
+                    </pre>
+                  </div>
+                )}
               </>
             ) : (
               <pre className="whitespace-pre-wrap font-mono text-sm bg-muted p-6 rounded-[var(--radius)] max-w-4xl">

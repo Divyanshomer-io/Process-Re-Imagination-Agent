@@ -16,7 +16,7 @@ class InputManifest(BaseModel):
 
 
 class FrictionItem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     # Pain Points & Opportunities table columns (strict output schema).
     friction_id: str = ""
